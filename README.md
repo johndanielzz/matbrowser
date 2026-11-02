@@ -41,9 +41,9 @@ independently. Use a shared datastore such as Vercel KV or Redis before relying 
 - Tabs, private tabs, back and forward per tab, bookmarks bar, history, speed dial, zoom
 - Address bar that searches or opens sites, with suggestions from the web, your bookmarks and your history
 - Search engines: DuckDuckGo, Brave, Mojeek, Bing, Startpage, Wikipedia, Google
-- On Vercel, web searches use the visitor's direct browser connection by default. This avoids provider
-  blocks against shared Vercel proxy IPs. Non-search pages can still use the MAT privacy proxy, and the
-  connection can be changed in Settings.
+- Web searches and normal pages stay inside MAT's internal tab view. If a provider blocks the server
+  request, MAT shows an in-app recovery screen with alternate search routes instead of opening an
+  external browser tab.
 - Shield: removes ad and tracker scripts, frames and pixels (about 140 hosts plus path rules), hides leftover ad boxes,
   strips utm_*, fbclid, gclid and other tracking tags, upgrades http to https, optionally turns off all page scripts
 - Site cookies are kept on the server so logins work, and never reach the browser window
@@ -65,6 +65,6 @@ independently. Use a shared datastore such as Vercel KV or Redis before relying 
 - Sites that need heavy scripting (some video players, web apps with WebSockets) may not work, and a script that sets
   `location.href` directly can leave the proxy.
 - Sites that detect proxies or datacenter addresses, such as Google or Cloudflare-protected pages, may show a CAPTCHA
-  through the privacy proxy. Search links on Vercel intentionally open in a normal browser tab so the provider sees
-  the visitor's own connection.
+  or an in-app provider-unavailable screen. This is an upstream restriction; MAT keeps the experience inside its own
+  tab and provides alternate routes.
 - If you set HOST=0.0.0.0, anyone who can reach the port can use your MAT. Add a password at a reverse proxy first.
