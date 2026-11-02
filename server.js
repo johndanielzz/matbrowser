@@ -102,6 +102,18 @@ function searchFallbackUrl(u) {
   fallback.searchParams.set('q', q);
   return fallback;
 }
+function searchRecoveryPage(query, failedHost) {
+  const q = encodeURIComponent(query || '');
+  const links = [
+    ['Brave Search', `https://search.brave.com/search?q=${q}`],
+    ['Bing', `https://www.bing.com/search?q=${q}`],
+    ['DuckDuckGo', `https://duckduckgo.com/?q=${q}`],
+    ['Google', `https://www.google.com/search?q=${q}`],
+    ['Wikipedia', `https://en.wikipedia.org/w/index.php?search=${q}`]
+  ];
+  const buttons = links.map(([label, url]) => `<button data-open="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">${label}</button>`).join('');
+  return shell('Search provider unavailable', `<div class="tag">MAT Search</div><h1>Choose another search route</h1><p>${failedHost || 'This provider'} rejected the Vercel server request. Your query is preserved:</p><p><code>${String(query || '').replace(/[<>&]/g, '')}</code></p><div class="choices">${buttons}</div><script>document.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(){try{parent.postMessage({mat:'open',url:b.dataset.open},'*')}catch(e){}}});</script><style>.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.choices button{border:1px solid #2b47f5;background:#2b47f5;color:white;border-radius:8px;padding:9px 12px;cursor:pointer}</style>`);
+}
 function stripParams(u, sess) {
   const del = [];
   u.searchParams.forEach((v, k) => { if (/^utm_/i.test(k) || BL.TRACK_PARAMS.includes(k.toLowerCase())) del.push(k); });
@@ -424,6 +436,8 @@ async function handleProxy(req, res) {
   } catch (e) {
     const private_ = e.code === 'PRIVATE';
     if (!isNav(req)) return send(res, 502, 'text/plain', 'MAT could not load this.');
+    const searchHost = SEARCH_HOSTS.has(u.hostname.toLowerCase().replace(/^www\./, '')) || SEARCH_HOSTS.has(u.hostname.toLowerCase());
+    if (!private_ && searchHost) return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(u.searchParams.get('q') || '', u.hostname));
     return send(res, private_ ? 403 : 502, 'text/html; charset=utf-8', errorPage(private_ ? 'Blocked for your safety' : 'This site did not respond',
       private_ ? e.message : 'MAT could not reach it. The address may be wrong, or the site may be down or refusing connections.', u.href));
   }
@@ -442,19 +456,14 @@ async function handleProxy(req, res) {
   if (searchHost && [403, 408, 418, 429, 500, 502, 503, 504].includes(r.status)) {
     const fallback = searchFallbackUrl(u);
     if (fallback && u.hostname.toLowerCase() !== 'search.brave.com') return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
-    if (fallback) return send(res, 502, 'text/html; charset=utf-8', errorPage('Search provider unavailable', 'This provider rejected the request. Choose another engine in MAT Settings.'));
+    if (fallback) return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(fallback.searchParams.get('q') || '', u.hostname));
   }
   if (/text\/html|application\/xhtml/i.test(ct)) {
     const sourceHtml = decodeText(Buffer.from(await r.arrayBuffer()), ct);
     const upstreamText = sourceHtml.slice(0, 12000).toLowerCase();
     if (/duckduckgo\.com$/i.test(u.hostname) && /if this persists|anonymized error code|home-error|rate limit/.test(upstreamText)) {
       const query = u.searchParams.get('q') || '';
-      if (query) {
-        const fallback = new URL('https://search.brave.com/search');
-        fallback.searchParams.set('q', query);
-        return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
-      }
-      return send(res, 502, 'text/html; charset=utf-8', errorPage('Search provider unavailable', 'DuckDuckGo rejected this server request. Choose another search engine in MAT Settings.'));
+      return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(query, u.hostname));
     }
     const html = rewriteHtml(sourceHtml, u.href, ctx);
     sess.stats.blocked += ctx.blocked;
