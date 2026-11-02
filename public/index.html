@@ -182,7 +182,7 @@ var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){r
 var ls={get:function(k,d){try{var v=localStorage.getItem('mat.'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set:function(k,v){try{localStorage.setItem('mat.'+k,JSON.stringify(v))}catch(e){}}};
 
 var ENGINES={
-  duckduckgo:['DuckDuckGo','https://html.duckduckgo.com/html/?q='],
+  duckduckgo:['DuckDuckGo','https://duckduckgo.com/?q='],
   brave:['Brave Search','https://search.brave.com/search?q='],
   mojeek:['Mojeek','https://www.mojeek.com/search?q='],
   bing:['Bing','https://www.bing.com/search?q='],
@@ -191,7 +191,8 @@ var ENGINES={
   google:['Google','https://www.google.com/search?q=']
 };
 var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitHub',url:'https://github.com/'},{title:'Hacker News',url:'https://news.ycombinator.com/'},{title:'MDN Web Docs',url:'https://developer.mozilla.org/'},{title:'OpenStreetMap',url:'https://www.openstreetmap.org/'},{title:'Internet Archive',url:'https://archive.org/'}];
-var P=Object.assign({engine:'duckduckgo',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false},ls.get('prefs',{}));
+var P=Object.assign({engine:'brave',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false},ls.get('prefs',{}));
+if(P.engine==='duckduckgo'){P.engine='brave';try{localStorage.setItem('mat.prefs',JSON.stringify(P))}catch(e){}}
 var BM=ls.get('bookmarks',DEFAULT_BM),HIST=ls.get('history',[]);
 var CFG={contentPort:0,contentOrigin:''};
 var tabs=[],activeId=0,nid=1,stats={blocked:0,stripped:0,upgraded:0},partyRoom=new URLSearchParams(location.search).get('party')||'',partyLast='',partyClient=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
@@ -318,6 +319,10 @@ window.addEventListener('message',function(e){
   if(d.mat==='key'){hotkey(d.key);return}
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
   if(d.mat==='movie'){partySend(d);return}
+  if(d.mat==='searchblocked'&&d.engine==='duckduckgo'){
+    var blockedQuery='';try{blockedQuery=new URL(d.url).searchParams.get('q')||''}catch(x){}
+    if(blockedQuery){toast('DuckDuckGo rejected this proxy request; opening the same search in Brave');nav(t||cur(),ENGINES.brave[1]+encodeURIComponent(blockedQuery));return}
+  }
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
   try {
     var bounced=new URL(d.url);
@@ -325,6 +330,10 @@ window.addEventListener('message',function(e){
       var cont=bounced.searchParams.get('continue'), query='';
       if(cont){try{query=new URL(cont).searchParams.get('q')||''}catch(x){}}
       if(query){toast('Google requested a CAPTCHA; opening the same search in Brave');nav(t,ENGINES.brave[1]+encodeURIComponent(query));return}
+    }
+    if(/(^|\.)duckduckgo\.com$/i.test(bounced.hostname)&&/\/html\/?$/i.test(bounced.pathname)){
+      var dq=bounced.searchParams.get('q')||'';
+      if(dq){toast('DuckDuckGo rejected this proxy request; opening the same search in Brave');nav(t,ENGINES.brave[1]+encodeURIComponent(dq));return}
     }
   } catch(x) {}
   var title=d.title||new URL(d.url).hostname.replace(/^www\./,''),p=page(t);

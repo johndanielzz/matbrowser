@@ -143,6 +143,13 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
   var framed = window.parent !== window;
   function tell(type, extra) { if (!framed) return; var m = { mat: type }; for (var k in extra) m[k] = extra[k]; try { window.parent.postMessage(m, '*'); } catch (e) { /* ignore */ } }
   function report() { tell('page', { url: BASE, title: document.title || '', blocked: BLOCKED }); }
+  function reportSearchBlock() {
+    try {
+      var host = new URL(BASE).hostname.replace(/^www\./, '');
+      var text = (document.body && document.body.innerText || '').slice(0, 1000).toLowerCase();
+      if (host === 'html.duckduckgo.com' && /if this persists|anonymized error code|email us/.test(text)) tell('searchblocked', { engine: 'duckduckgo', url: BASE });
+    } catch (e) { /* ignore */ }
+  }
   function movieState(v, action) { tell('movie', { url: BASE, action: action, time: Number(v.currentTime) || 0, playing: !v.paused }); }
   function movieAssistant() {
     if (!MOVIE) return;
@@ -258,8 +265,8 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
   }, true);
   document.addEventListener('submit', function (e) { if (e.target && e.target.target && e.target.target !== '_self') e.target.target = '_self'; }, true);
   document.addEventListener('keydown', function (e) { if (e.altKey && /^(t|w|l)$/i.test(e.key)) tell('key', { key: e.key.toLowerCase() }); }, true);
-  document.addEventListener('DOMContentLoaded', report);
-  window.addEventListener('load', report);
+  document.addEventListener('DOMContentLoaded', function () { report(); reportSearchBlock(); });
+  window.addEventListener('load', function () { report(); reportSearchBlock(); });
   if (MOVIE) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', movieAssistant); else movieAssistant(); }
   new MutationObserver(function () { var t = document.querySelector('title'); if (t) report(); }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 }
