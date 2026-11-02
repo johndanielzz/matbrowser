@@ -1,0 +1,13 @@
+{
+  "name": "MAT Browser",
+  "short_name": "MAT",
+  "description": "A privacy-first browser with ad blocking, tracker protection and Movie Mode.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d1015",
+  "theme_color": "#2b47f5",
+  "icons": [
+    { "src": "/icons/mat-browser.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -11,6 +11,8 @@ You need Node 18.14 or newer (https://nodejs.org). No packages to install.
 
 Open http://127.0.0.1:8080
 
+Before pushing or redeploying, run `npm run verify` to validate both the local server and Vercel function entry point.
+
 ## Install as an app
 
 Open MAT Browser in a Chromium-based browser and choose **Install MAT Browser** from the address-bar install button or
@@ -23,6 +25,10 @@ repository in Vercel, and deploy with the default Node.js settings. For local us
 
 The proxy keeps session state in memory. A single local process is the recommended deployment for persistent site
 cookies; serverless deployments may lose sessions when functions scale down or restart.
+
+After a Vercel redeploy, check `/api/health`. It should return JSON with `ok: true`. If Vercel shows a function
+invocation error, open the deployment's **Functions → Logs** and use the first stack-trace line; a generic 500 screen
+does not contain the root cause.
 
 ## Watch parties
 

@@ -468,9 +468,12 @@ async function handleMain(req, res) {
     }
   }
   if (q.pathname === '/api/config') return send(res, 200, 'application/json', JSON.stringify({ contentOrigin: CONTENT_ORIGIN, contentPort: process.env.VERCEL ? 0 : CPORT, settings: sess.s }));
-  if (q.pathname === '/api/party/create' && req.method === 'POST') {
-    const id = crypto.randomBytes(9).toString('base64url'); parties.set(id, { state: null, touched: Date.now() });
-    return send(res, 201, 'application/json', JSON.stringify({ id }));
+  if (q.pathname === '/api/health') return send(res, 200, 'application/json', JSON.stringify({ ok: true, runtime: process.env.VERCEL ? 'vercel' : 'node', node: process.versions.node, parties: parties.size }));
+  if (q.pathname === '/api/party/create' && (req.method === 'POST' || req.method === 'GET')) {
+    try {
+      const id = crypto.randomBytes(12).toString('hex'); parties.set(id, { state: null, touched: Date.now() });
+      return send(res, 201, 'application/json', JSON.stringify({ id }));
+    } catch (e) { return send(res, 500, 'application/json', JSON.stringify({ error: 'party_create_failed', message: e.message })); }
   }
   if (q.pathname === '/api/party/state') {
     const id = q.searchParams.get('room') || '';
