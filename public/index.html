@@ -190,6 +190,7 @@ var ENGINES={
   wikipedia:['Wikipedia','https://en.wikipedia.org/w/index.php?search='],
   google:['Google','https://www.google.com/search?q=']
 };
+var SEARCH_FALLBACKS=['brave','mojeek','bing','startpage','wikipedia'];
 var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitHub',url:'https://github.com/'},{title:'Hacker News',url:'https://news.ycombinator.com/'},{title:'MDN Web Docs',url:'https://developer.mozilla.org/'},{title:'OpenStreetMap',url:'https://www.openstreetmap.org/'},{title:'Internet Archive',url:'https://archive.org/'}];
 var P=Object.assign({engine:'brave',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false},ls.get('prefs',{}));
 if(P.engine==='duckduckgo'){P.engine='brave';try{localStorage.setItem('mat.prefs',JSON.stringify(P))}catch(e){}}
@@ -221,9 +222,16 @@ function pushServer(){
 }
 function partyLink(){return location.origin+'/?party='+encodeURIComponent(partyRoom)+'&url='+encodeURIComponent(page().url)}
 function partySend(d){if(!partyRoom)return;d.source=partyClient;partyLast=d.action+'|'+Math.round((d.time||0)*2)/2;fetch('/api/party/state?room='+encodeURIComponent(partyRoom),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(d)}).catch(function(){})}
-function partyPoll(){if(!partyRoom)return;fetch('/api/party/state?room='+encodeURIComponent(partyRoom)).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.action||d.source===partyClient)return;var t=cur();if(d.url&&t&&page(t).url!==d.url){nav(t,d.url);return}if(t&&t.frame&&t.frame.contentWindow)t.frame.contentWindow.postMessage({mat:'moviecmd',action:d.action,time:d.time},'*')}).catch(function(){})}
+function partyPoll(){if(!partyRoom)return;fetch('/api/party/state?room='+encodeURIComponent(partyRoom)).then(function(r){if(r.status===404){partyRoom='';toast('Watch party expired or is unavailable');return null}return r.ok?r.json():null}).then(function(d){if(!d||!d.action||d.source===partyClient)return;var t=cur();if(d.url&&t&&page(t).url!==d.url){nav(t,d.url);return}if(t&&t.frame&&t.frame.contentWindow)t.frame.contentWindow.postMessage({mat:'moviecmd',action:d.action,time:d.time},'*')}).catch(function(){})}
 function contentOrigin(){return CFG.contentOrigin||(CFG.contentPort?location.protocol+'//'+location.hostname+':'+CFG.contentPort:location.origin)}
 function proxyUrl(u){return contentOrigin()+'/proxy?u='+encodeURIComponent(u)}
+function searchEngineForUrl(url){try{var host=new URL(url).hostname.replace(/^www\./,'');if(/duckduckgo/.test(host))return 'duckduckgo';if(/search\.brave\.com/.test(host))return 'brave';if(/mojeek/.test(host))return 'mojeek';if(/bing\.com/.test(host))return 'bing';if(/startpage/.test(host))return 'startpage';if(/wikipedia\.org/.test(host))return 'wikipedia';if(/google\./.test(host))return 'google'}catch(e){}return ''}
+function fallbackSearch(t,query,failed){
+  if(!query)return false;t=t||cur();t.searchAttempts=t.searchAttempts||{};t.searchAttempts[failed]=true;
+  var next=SEARCH_FALLBACKS.find(function(k){return !t.searchAttempts[k]});
+  if(!next){toast('Search provider unavailable. Try another engine in Settings.');return false}
+  t.searchAttempts[next]=true;toast((ENGINES[failed]&&ENGINES[failed][0]||'Search provider')+' rejected the request; trying '+ENGINES[next][0]);nav(t,ENGINES[next][1]+encodeURIComponent(query),{search:query,fallback:true});return true;
+}
 
 /* ---------- address handling ---------- */
 function looksLikeUrl(s){
@@ -266,7 +274,7 @@ function closeTab(id){
   draw();persist();
 }
 function nav(t,input,opts){
-  opts=opts||{};var p=resolve(input);
+  opts=opts||{};var p=resolve(input);if(opts.search)p.search=opts.search;if(p.search){t.searchQuery=p.search;if(!opts.fallback){t.searchAttempts={};t.searchAttempts[searchEngineForUrl(p.url)]=true}}
   if(!opts.replace){t.stack=t.stack.slice(0,t.idx+1);t.stack.push(p);t.idx=t.stack.length-1}
   else t.stack[t.idx]=p;
   load(t);persist();
@@ -321,7 +329,7 @@ window.addEventListener('message',function(e){
   if(d.mat==='movie'){partySend(d);return}
   if(d.mat==='searchblocked'&&d.engine==='duckduckgo'){
     var blockedQuery='';try{blockedQuery=new URL(d.url).searchParams.get('q')||''}catch(x){}
-    if(blockedQuery){toast('DuckDuckGo rejected this proxy request; opening the same search in Brave');nav(t||cur(),ENGINES.brave[1]+encodeURIComponent(blockedQuery));return}
+    if(blockedQuery){fallbackSearch(t||cur(),blockedQuery,'duckduckgo');return}
   }
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
   try {
@@ -329,11 +337,11 @@ window.addEventListener('message',function(e){
     if(/(^|\.)google\./i.test(bounced.hostname)&&/\/sorry\//i.test(bounced.pathname)){
       var cont=bounced.searchParams.get('continue'), query='';
       if(cont){try{query=new URL(cont).searchParams.get('q')||''}catch(x){}}
-      if(query){toast('Google requested a CAPTCHA; opening the same search in Brave');nav(t,ENGINES.brave[1]+encodeURIComponent(query));return}
+      if(query){fallbackSearch(t,query,'google');return}
     }
-    if(/(^|\.)duckduckgo\.com$/i.test(bounced.hostname)&&/\/html\/?$/i.test(bounced.pathname)){
+    if(/(^|\.)duckduckgo\.com$/i.test(bounced.hostname)){
       var dq=bounced.searchParams.get('q')||'';
-      if(dq){toast('DuckDuckGo rejected this proxy request; opening the same search in Brave');nav(t,ENGINES.brave[1]+encodeURIComponent(dq));return}
+      if(dq&&/\/html\/?$|\/sorry\//i.test(bounced.pathname)){fallbackSearch(t,dq,'duckduckgo');return}
     }
   } catch(x) {}
   var title=d.title||new URL(d.url).hostname.replace(/^www\./,''),p=page(t);

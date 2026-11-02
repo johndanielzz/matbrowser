@@ -147,7 +147,7 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
     try {
       var host = new URL(BASE).hostname.replace(/^www\./, '');
       var text = (document.body && document.body.innerText || '').slice(0, 1000).toLowerCase();
-      if (host === 'html.duckduckgo.com' && /if this persists|anonymized error code|email us/.test(text)) tell('searchblocked', { engine: 'duckduckgo', url: BASE });
+      if (/duckduckgo\.com$/.test(host) && /if this persists|anonymized error code|email us|rate limit/.test(text)) tell('searchblocked', { engine: 'duckduckgo', url: BASE });
     } catch (e) { /* ignore */ }
   }
   function movieState(v, action) { tell('movie', { url: BASE, action: action, time: Number(v.currentTime) || 0, playing: !v.paused }); }
