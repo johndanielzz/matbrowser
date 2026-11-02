@@ -173,7 +173,7 @@ input[type=text],input[type=search],select{background:var(--surface-2);border:1p
   <div id="status"><span class="grow" id="statustext">Ready</span><span id="blockedpage"></span><span id="zoomv"></span></div>
 </div>
 <div id="toast" role="status" hidden></div>
-<div id="install" hidden><p><b>Install MAT Browser</b><br><span class="muted">Use it like a private app on this device.</span></p><button type="button" class="btn primary" id="installgo">Install</button><button type="button" class="ib" id="installclose" aria-label="Dismiss install prompt">×</button></div>
+<div id="install" hidden><p><b>Install MAT Browser</b><br><span class="muted">Use it like a private app on this device.</span></p><button type="button" class="btn primary" id="installgo">Install</button><button type="button" class="btn" id="installclose" aria-label="Cancel installation">Cancel</button></div>
 <script>
 (function(){
 'use strict';
@@ -204,8 +204,9 @@ function saveData(){ls.set('bookmarks',BM);ls.set('history',HIST)}
 function applyTheme(){var r=document.documentElement;if(P.theme==='light'||P.theme==='dark')r.setAttribute('data-theme',P.theme);else r.removeAttribute('data-theme')}
 var tt;function toast(m){var e=$('#toast');e.textContent=m;e.hidden=false;clearTimeout(tt);tt=setTimeout(function(){e.hidden=true},2000)}
 var installEvent=null;
-window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvent=e;var box=$('#install');if(box&&!localStorage.getItem('mat.installDismissed'))box.hidden=false});
-function dismissInstall(e){if(e){e.preventDefault();e.stopPropagation()}var box=$('#install');if(box)box.hidden=true;try{localStorage.setItem('mat.installDismissed','1')}catch(x){}}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvent=e;var box=$('#install');var dismissed=false;try{dismissed=localStorage.getItem('mat.installDismissed')==='1'}catch(x){}if(box&&!dismissed){box.hidden=false;box.style.display='flex'}});
+function dismissInstall(e){if(e){e.preventDefault();e.stopImmediatePropagation()}var box=$('#install');if(box){box.hidden=true;box.style.display='none';box.setAttribute('aria-hidden','true')}try{localStorage.setItem('mat.installDismissed','1')}catch(x){}}
+function bindInstallControls(){var close=$('#installclose');if(close)close.addEventListener('click',dismissInstall,{capture:true});var go=$('#installgo');if(go)go.addEventListener('click',function(e){if(!installEvent)return;e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(function(){var box=$('#install');if(box)box.hidden=true})},{capture:true})}
 document.addEventListener('click',function(e){
   var close=e.target&&e.target.closest?e.target.closest('#installclose'):null;
   if(close){dismissInstall(e);return}
@@ -213,6 +214,7 @@ document.addEventListener('click',function(e){
   if(go&&installEvent){e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(function(){var box=$('#install');if(box)box.hidden=true})}
 });
 window.addEventListener('appinstalled',function(){$('#install').hidden=true;toast('MAT Browser installed')});
+bindInstallControls();
 function pushServer(){
   fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({adblock:P.adblock,strip:P.strip,https:P.https,cookies:P.cookies,nojs:P.nojs,dark:P.dark,movie:P.movie})}).catch(function(){});
 }
@@ -317,6 +319,14 @@ window.addEventListener('message',function(e){
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
   if(d.mat==='movie'){partySend(d);return}
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
+  try {
+    var bounced=new URL(d.url);
+    if(/(^|\.)google\./i.test(bounced.hostname)&&/\/sorry\//i.test(bounced.pathname)){
+      var cont=bounced.searchParams.get('continue'), query='';
+      if(cont){try{query=new URL(cont).searchParams.get('q')||''}catch(x){}}
+      if(query){toast('Google requested a CAPTCHA; opening the same search in Brave');nav(t,ENGINES.brave[1]+encodeURIComponent(query));return}
+    }
+  } catch(x) {}
   var title=d.title||new URL(d.url).hostname.replace(/^www\./,''),p=page(t);
   t.blocked=d.blocked||0;
   if(p.url!==d.url){
