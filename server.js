@@ -112,7 +112,8 @@ function searchRecoveryPage(query, failedHost) {
     ['Wikipedia', `https://en.wikipedia.org/w/index.php?search=${q}`]
   ];
   const buttons = links.map(([label, url]) => `<button data-open="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">${label}</button>`).join('');
-  return shell('Search provider unavailable', `<div class="tag">MAT Search</div><h1>Choose another search route</h1><p>${failedHost || 'This provider'} rejected the Vercel server request. Your query is preserved:</p><p><code>${String(query || '').replace(/[<>&]/g, '')}</code></p><div class="choices">${buttons}</div><script>document.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(){try{parent.postMessage({mat:'open',url:b.dataset.open},'*')}catch(e){}}});</script><style>.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.choices button{border:1px solid #2b47f5;background:#2b47f5;color:white;border-radius:8px;padding:9px 12px;cursor:pointer}</style>`);
+  const direct = links.map(([label, url]) => `<a data-direct="1" href="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">Open ${label} directly</a>`).join('');
+  return shell('Search provider unavailable', `<div class="tag">MAT Search</div><h1>Choose another search route</h1><p>${failedHost || 'This provider'} rejected the MAT server request. Your query is preserved:</p><p><code>${String(query || '').replace(/[<>&]/g, '')}</code></p><div class="choices">${buttons}</div><details><summary>Use your own connection</summary><div class="direct">${direct}</div></details><script>document.querySelectorAll('[data-open]').forEach(function(b){b.onclick=function(){try{parent.postMessage({mat:'open',url:b.dataset.open},'*')}catch(e){}}});</script><style>.choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}.choices button{border:1px solid #2b47f5;background:#2b47f5;color:white;border-radius:8px;padding:9px 12px;cursor:pointer}details{margin-top:18px}.direct{display:flex;flex-direction:column;gap:6px;margin-top:8px}</style>`);
 }
 function stripParams(u, sess) {
   const del = [];
@@ -279,7 +280,7 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
   });
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest && e.target.closest('a[href]');
-    if (a && (a.target === '_blank' || a.target === '_top' || a.target === '_parent') && e.button === 0) {
+    if (a && !a.dataset.direct && (a.target === '_blank' || a.target === '_top' || a.target === '_parent') && e.button === 0) {
       e.preventDefault(); tell('open', { url: real(a.href) });
     }
   }, true);
