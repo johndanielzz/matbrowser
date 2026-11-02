@@ -28,6 +28,7 @@ const MAX_BODY = 25 * 1024 * 1024;
 /* ---------- sessions: settings, cookie jar, counters ---------- */
 const DEFAULTS = { adblock: true, strip: true, https: true, cookies: true, nojs: false, dark: false, movie: false };
 const sessions = new Map();
+const parties = new Map();
 function newSession() { return { jar: new Map(), s: { ...DEFAULTS }, stats: { blocked: 0, stripped: 0, upgraded: 0 } }; }
 function sidFrom(req) { const m = /(?:^|;\s*)mat_sid=([a-f0-9]{32})/.exec(req.headers.cookie || ''); return m && m[1]; }
 function getSession(req, res, create) {
@@ -142,6 +143,7 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
   var framed = window.parent !== window;
   function tell(type, extra) { if (!framed) return; var m = { mat: type }; for (var k in extra) m[k] = extra[k]; try { window.parent.postMessage(m, '*'); } catch (e) { /* ignore */ } }
   function report() { tell('page', { url: BASE, title: document.title || '', blocked: BLOCKED }); }
+  function movieState(v, action) { tell('movie', { url: BASE, action: action, time: Number(v.currentTime) || 0, playing: !v.paused }); }
   function movieAssistant() {
     if (!MOVIE) return;
     var approved = false, offered = false, nextTimer = null, lastCue = '';
@@ -185,20 +187,28 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
           if(box.hidden){box.hidden=false;box.innerHTML='<span>Connection stalled</span><button data-retry>Retry from here</button><button class="secondary" data-dismiss>Dismiss</button>';var video=this,pos=this.currentTime;box.querySelector('[data-retry]').onclick=function(){try{video.load();video.currentTime=pos;video.play().catch(function(){})}catch(e){}hide()};box.querySelector('[data-dismiss]').onclick=hide}
         });
         v.addEventListener('canplay',function(){if(/^Buffering|^Connection stalled/.test(box.textContent))hide()});
+        v.addEventListener('timeupdate',function(){if(this.duration>60&&this.currentTime>10&&Math.floor(this.currentTime)%10===0){try{localStorage.setItem('mat.resume.'+BASE,JSON.stringify({time:this.currentTime,duration:this.duration,at:Date.now()}))}catch(e){}}});
+        v.addEventListener('loadedmetadata',function(){
+          try{var saved=JSON.parse(localStorage.getItem('mat.resume.'+BASE)||'null');if(saved&&saved.time>30&&saved.time<this.duration-15&&Date.now()-saved.at<1209600000){box.hidden=false;box.innerHTML='<span>Resume at '+Math.floor(saved.time/60)+':'+String(Math.floor(saved.time%60)).padStart(2,'0')+'?</span><button data-resume>Resume</button><button class="secondary" data-start>Start over</button>';box.querySelector('[data-resume]').onclick=function(){this.currentTime=saved.time;hide()}.bind(this);box.querySelector('[data-start]').onclick=function(){try{localStorage.removeItem('mat.resume.'+BASE)}catch(e){}hide()}}}catch(e){}
+        });
         v.addEventListener('ended',function(){armNext(this)});
+        v.addEventListener('play',function(){movieState(this,'play')}); v.addEventListener('pause',function(){movieState(this,'pause')}); v.addEventListener('seeked',function(){movieState(this,'seek')});
         var text=(document.body.innerText||'').slice(0,12000);
         var cue=/previously on|recap|episode recap/i.test(text)?'recap':/opening credits|intro|opening theme/i.test(text)?'intro':/end credits|closing credits|outro|the end/i.test(text)?'outro':/song|music video|musical number/i.test(text)?'song':null;
         if(cue&&((cue==='outro'&&v.duration&&v.currentTime>Math.max(0,v.duration-180))||(cue!=='outro'&&v.currentTime<30)))showCue(v,cue);
       }
       if(videos.length&&!approved&&!offered&&box.hidden){
-        offered=true; box.hidden=false; box.innerHTML='<span>Movie Mode ready</span><button data-auto>Enable 10s auto-next</button><button class="secondary" data-dismiss>Not now</button>';
+        offered=true; box.hidden=false; box.innerHTML='<span>Movie Mode ready</span><button data-auto>Enable 10s auto-next</button>'+(document.pictureInPictureEnabled?'<button class="secondary" data-pip>PiP</button>':'')+'<button class="secondary" data-full>Fullscreen</button><button class="secondary" data-dismiss>Not now</button>';
         box.querySelector('[data-auto]').onclick=function(){approved=true;hide()}; box.querySelector('[data-dismiss]').onclick=hide;
+        if(box.querySelector('[data-pip]'))box.querySelector('[data-pip]').onclick=function(){var v=videos[0];if(v.requestPictureInPicture)v.requestPictureInPicture().catch(function(){})};
+        if(box.querySelector('[data-full]'))box.querySelector('[data-full]').onclick=function(){var v=videos[0];if(v.requestFullscreen)v.requestFullscreen().catch(function(){})};
       }
       if(!approved&&!box.hidden&&box.querySelector('[data-skip]')){
         var toggle=document.createElement('button');toggle.className='secondary';toggle.textContent='Allow auto-next';toggle.onclick=function(){approved=true;toggle.remove()};box.appendChild(toggle);
       }
     }
     setInterval(scan,1500); scan();
+    window.addEventListener('message',function(e){var d=e.data||{};if(d.mat!=='moviecmd')return;var v=document.querySelector('video');if(!v)return;try{if(typeof d.time==='number')v.currentTime=d.time;if(d.action==='play')v.play().catch(function(){});if(d.action==='pause')v.pause()}catch(x){}});
   }
 
   var of = window.fetch;
@@ -458,6 +468,17 @@ async function handleMain(req, res) {
     }
   }
   if (q.pathname === '/api/config') return send(res, 200, 'application/json', JSON.stringify({ contentOrigin: CONTENT_ORIGIN, contentPort: process.env.VERCEL ? 0 : CPORT, settings: sess.s }));
+  if (q.pathname === '/api/party/create' && req.method === 'POST') {
+    const id = crypto.randomBytes(9).toString('base64url'); parties.set(id, { state: null, touched: Date.now() });
+    return send(res, 201, 'application/json', JSON.stringify({ id }));
+  }
+  if (q.pathname === '/api/party/state') {
+    const id = q.searchParams.get('room') || '';
+    if (!parties.has(id)) return send(res, 404, 'application/json', '{"error":"room_not_found"}');
+    const room = parties.get(id); room.touched = Date.now();
+    if (req.method === 'POST') { try { const d = JSON.parse((await readBody(req)).toString()); if (d && typeof d === 'object') room.state = { source: String(d.source || '').slice(0, 80), url: String(d.url || ''), action: String(d.action || ''), time: Number(d.time) || 0, playing: !!d.playing, at: Date.now() }; } catch (e) { return send(res, 400, 'application/json', '{"error":"bad_state"}'); } }
+    return send(res, 200, 'application/json', JSON.stringify(room.state || {}));
+  }
   if (q.pathname === '/api/settings' && req.method === 'POST') {
     try {
       const d = JSON.parse((await readBody(req)).toString());
@@ -489,6 +510,7 @@ const handleContent = wrap(async (req, res) => {
   send(res, 404, 'text/plain', 'Not found');
 });
 const handleMainRequest = wrap(handleMain);
+setInterval(() => { const cutoff = Date.now() - 2 * 60 * 60 * 1000; for (const [id, room] of parties) if (room.touched < cutoff) parties.delete(id); }, 15 * 60 * 1000).unref();
 if (require.main === module) {
   http.createServer(handleMainRequest).listen(PORT, HOST, () => console.log(`MAT Browser is running at http://${HOST}:${PORT}`));
   http.createServer(handleContent).listen(CPORT, HOST, () => console.log(`Pages are served from port ${CPORT}`));

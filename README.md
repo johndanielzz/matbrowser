@@ -18,11 +18,17 @@ the browser menu. The app manifest, service worker, and matching MAT icon are in
 
 ## GitHub and Vercel
 
-This repository includes `vercel.json` and a serverless adapter at `api/index.js`. Push the project to GitHub, import the
+This repository includes `vercel.json` and a serverless adapter at `api/index.mjs`. Push the project to GitHub, import the
 repository in Vercel, and deploy with the default Node.js settings. For local use, continue to run `npm start`.
 
 The proxy keeps session state in memory. A single local process is the recommended deployment for persistent site
 cookies; serverless deployments may lose sessions when functions scale down or restart.
+
+## Watch parties
+
+Movie Mode includes a private, expiring watch-party link that synchronizes permitted video play, pause, and seek events.
+On Vercel, room state is in-memory and is therefore only a preview implementation: instances can restart or scale
+independently. Use a shared datastore such as Vercel KV or Redis before relying on watch parties in production.
 
 ## What it does
 

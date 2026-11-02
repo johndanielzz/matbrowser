@@ -194,7 +194,8 @@ var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitH
 var P=Object.assign({engine:'duckduckgo',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false},ls.get('prefs',{}));
 var BM=ls.get('bookmarks',DEFAULT_BM),HIST=ls.get('history',[]);
 var CFG={contentPort:0,contentOrigin:''};
-var tabs=[],activeId=0,nid=1,stats={blocked:0,stripped:0,upgraded:0};
+var tabs=[],activeId=0,nid=1,stats={blocked:0,stripped:0,upgraded:0},partyRoom=new URLSearchParams(location.search).get('party')||'',partyLast='',partyClient=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
+if(partyRoom)P.movie=true;
 var INTERNAL={start:'New tab',history:'History',bookmarks:'Bookmarks',shield:'Shield',settings:'Settings'};
 var VIEWS={},ACT={};
 
@@ -212,6 +213,9 @@ window.addEventListener('appinstalled',function(){$('#install').hidden=true;toas
 function pushServer(){
   fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({adblock:P.adblock,strip:P.strip,https:P.https,cookies:P.cookies,nojs:P.nojs,dark:P.dark,movie:P.movie})}).catch(function(){});
 }
+function partyLink(){return location.origin+'/?party='+encodeURIComponent(partyRoom)+'&url='+encodeURIComponent(page().url)}
+function partySend(d){if(!partyRoom)return;d.source=partyClient;partyLast=d.action+'|'+Math.round((d.time||0)*2)/2;fetch('/api/party/state?room='+encodeURIComponent(partyRoom),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(d)}).catch(function(){})}
+function partyPoll(){if(!partyRoom)return;fetch('/api/party/state?room='+encodeURIComponent(partyRoom)).then(function(r){return r.ok?r.json():null}).then(function(d){if(!d||!d.action||d.source===partyClient)return;var t=cur();if(d.url&&t&&page(t).url!==d.url){nav(t,d.url);return}if(t&&t.frame&&t.frame.contentWindow)t.frame.contentWindow.postMessage({mat:'moviecmd',action:d.action,time:d.time},'*')}).catch(function(){})}
 function contentOrigin(){return CFG.contentOrigin||(CFG.contentPort?location.protocol+'//'+location.hostname+':'+CFG.contentPort:location.origin)}
 function proxyUrl(u){return contentOrigin()+'/proxy?u='+encodeURIComponent(u)}
 
@@ -308,6 +312,7 @@ window.addEventListener('message',function(e){
   var t=tabs.find(function(x){return x.frame.contentWindow===e.source});
   if(d.mat==='key'){hotkey(d.key);return}
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
+  if(d.mat==='movie'){partySend(d);return}
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
   var title=d.title||new URL(d.url).hostname.replace(/^www\./,''),p=page(t);
   t.blocked=d.blocked||0;
@@ -423,7 +428,7 @@ function drawMenu(){
   $('#menu').innerHTML='<button class="row" data-act="newtab">New tab <kbd>Alt+T</kbd></button><button class="row" data-act="privtab">New private tab</button><hr>'+
     '<button class="row" data-go="mat://bookmarks">Bookmarks</button><button class="row" data-go="mat://history">History</button><button class="row" data-go="mat://shield">Shield</button><button class="row" data-go="mat://settings">Settings</button><hr>'+
     '<button class="row" data-act="zoomin">Zoom in <kbd>'+Math.round(t.zoom*100)+'%</kbd></button><button class="row" data-act="zoomout">Zoom out</button><button class="row" data-act="zoomreset">Reset zoom</button><hr>'+
-    '<button class="row" data-act="movie">'+(P.movie?'Turn off Movie Mode':'Turn on Movie Mode')+'</button><button class="row" data-act="darkpages">'+(P.dark?'Turn off dark pages':'Turn on dark pages')+'</button><button class="row" data-act="theme">Switch window theme</button>'+
+    '<button class="row" data-act="movie">'+(P.movie?'Turn off Movie Mode':'Turn on Movie Mode')+'</button><button class="row" data-act="share">'+(partyRoom?'Copy watch-party link':'Start watch party')+'</button><button class="row" data-act="darkpages">'+(P.dark?'Turn off dark pages':'Turn on dark pages')+'</button><button class="row" data-act="theme">Switch window theme</button>'+ 
     '<button class="row" data-act="source">Open original page in a separate window</button>';
 }
 function closePops(){$('#shieldpop').hidden=true;$('#menu').hidden=true}
@@ -434,6 +439,11 @@ function hotkey(k){
   if(k==='t')newTab();else if(k==='w')closeTab(activeId);else if(k==='l'){var o=$('#omnibox');o.focus();o.select()}
 }
 ACT.newtab=function(){newTab()};
+ACT.share=function(){
+  var copy=function(){var link=partyLink();if(navigator.clipboard){navigator.clipboard.writeText(link).then(function(){toast('Watch-party link copied')}).catch(function(){window.prompt('Copy this watch-party link:',link)})}else window.prompt('Copy this watch-party link:',link)};
+  if(partyRoom){copy();return}
+  fetch('/api/party/create',{method:'POST'}).then(function(r){if(!r.ok)throw new Error('create failed');return r.json()}).then(function(d){partyRoom=d.id;P.movie=true;saveP();pushServer();copy();drawMenu()}).catch(function(){toast('Could not create watch party')});
+};
 ACT.privtab=function(){newTab('mat://start',true)};
 ACT.zoomin=function(){var t=cur();t.zoom=Math.min(3,Math.round((t.zoom+0.1)*10)/10);draw();drawMenu()};
 ACT.zoomout=function(){var t=cur();t.zoom=Math.max(0.3,Math.round((t.zoom-0.1)*10)/10);draw();drawMenu()};
@@ -502,12 +512,14 @@ applyTheme();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){});
 fetch('/api/config').then(function(r){return r.json()}).then(function(c){
   CFG=c;pushServer();refreshStats();
+  var shared=new URLSearchParams(location.search).get('url');
   var saved=ls.get('session',[]);
-  if(Array.isArray(saved)&&saved.length){saved.forEach(function(u,i){var t=makeTab(false);activeId=t.id;nav(t,u)})}
+  if(shared){newTab(shared,false)}
+  else if(Array.isArray(saved)&&saved.length){saved.forEach(function(u,i){var t=makeTab(false);activeId=t.id;nav(t,u)})}
   else newTab('mat://start');
   activeId=tabs[0].id;draw();
 }).catch(function(){document.body.innerHTML='<p style="padding:24px">MAT Browser could not reach its server. Start it with <code>node server.js</code>.</p>'});
-setInterval(refreshStats,4000);setInterval(tickClock,20000);
+setInterval(refreshStats,4000);setInterval(tickClock,20000);setInterval(partyPoll,1500);
 })();
 </script>
 </body>
