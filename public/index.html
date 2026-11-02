@@ -192,8 +192,11 @@ var ENGINES={
 };
 var SEARCH_FALLBACKS=['brave','mojeek','bing','startpage','wikipedia'];
 var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitHub',url:'https://github.com/'},{title:'Hacker News',url:'https://news.ycombinator.com/'},{title:'MDN Web Docs',url:'https://developer.mozilla.org/'},{title:'OpenStreetMap',url:'https://www.openstreetmap.org/'},{title:'Internet Archive',url:'https://archive.org/'}];
-var P=Object.assign({engine:'brave',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false},ls.get('prefs',{}));
+var deployedHost=/\.vercel\.app$/i.test(location.hostname)||/vercel\.app$/i.test(location.hostname);
+var P=Object.assign({engine:'brave',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false,searchMode:deployedHost?'direct':'proxy'},ls.get('prefs',{}));
 if(P.engine==='duckduckgo'){P.engine='brave';try{localStorage.setItem('mat.prefs',JSON.stringify(P))}catch(e){}}
+if(!ENGINES[P.engine])P.engine='brave';
+if(P.searchMode!=='direct'&&P.searchMode!=='proxy')P.searchMode=deployedHost?'direct':'proxy';
 var BM=ls.get('bookmarks',DEFAULT_BM),HIST=ls.get('history',[]);
 var CFG={contentPort:0,contentOrigin:''};
 var tabs=[],activeId=0,nid=1,stats={blocked:0,stripped:0,upgraded:0},partyRoom=new URLSearchParams(location.search).get('party')||'',partyLast='',partyClient=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());
@@ -223,6 +226,7 @@ function pushServer(){
 function partyLink(){return location.origin+'/?party='+encodeURIComponent(partyRoom)+'&url='+encodeURIComponent(page().url)}
 function partySend(d){if(!partyRoom)return;d.source=partyClient;partyLast=d.action+'|'+Math.round((d.time||0)*2)/2;fetch('/api/party/state?room='+encodeURIComponent(partyRoom),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(d)}).catch(function(){})}
 function partyPoll(){if(!partyRoom)return;fetch('/api/party/state?room='+encodeURIComponent(partyRoom)).then(function(r){if(r.status===404){partyRoom='';toast('Watch party expired or is unavailable');return null}return r.ok?r.json():null}).then(function(d){if(!d||!d.action||d.source===partyClient)return;var t=cur();if(d.url&&t&&page(t).url!==d.url){nav(t,d.url);return}if(t&&t.frame&&t.frame.contentWindow)t.frame.contentWindow.postMessage({mat:'moviecmd',action:d.action,time:d.time},'*')}).catch(function(){})}
+function openDirectUrl(url){if(!/^https?:\/\//i.test(url||''))return;var popup=window.open(url,'_blank');if(popup){try{popup.opener=null}catch(e){}}else{window.location.assign(url)}}
 function contentOrigin(){return CFG.contentOrigin||(CFG.contentPort?location.protocol+'//'+location.hostname+':'+CFG.contentPort:location.origin)}
 function proxyUrl(u){return contentOrigin()+'/proxy?u='+encodeURIComponent(u)}
 function searchEngineForUrl(url){try{var host=new URL(url).hostname.replace(/^www\./,'');if(/duckduckgo/.test(host))return 'duckduckgo';if(/search\.brave\.com/.test(host))return 'brave';if(/mojeek/.test(host))return 'mojeek';if(/bing\.com/.test(host))return 'bing';if(/startpage/.test(host))return 'startpage';if(/wikipedia\.org/.test(host))return 'wikipedia';if(/google\./.test(host))return 'google'}catch(e){}return ''}
@@ -245,7 +249,7 @@ function resolve(input){
   if(m&&INTERNAL[m[1].toLowerCase()])return {kind:m[1].toLowerCase(),url:'mat://'+m[1].toLowerCase(),title:INTERNAL[m[1].toLowerCase()]};
   if(!input)return {kind:'start',url:'mat://start',title:INTERNAL.start};
   var u=input;
-  if(!looksLikeUrl(input))u=ENGINES[P.engine][1]+encodeURIComponent(input);
+  if(!looksLikeUrl(input)){var engine=ENGINES[P.engine]||ENGINES.brave;u=engine[1]+encodeURIComponent(input)}
   else if(!/^https?:\/\//i.test(u))u='https://'+u;
   var host='';try{host=new URL(u).hostname.replace(/^www\./,'')}catch(e){}
   return {kind:'web',url:u,title:host||u,search:!looksLikeUrl(input)?input:''};
@@ -274,7 +278,9 @@ function closeTab(id){
   draw();persist();
 }
 function nav(t,input,opts){
-  opts=opts||{};var p=resolve(input);if(opts.search)p.search=opts.search;if(p.search){t.searchQuery=p.search;if(!opts.fallback){t.searchAttempts={};t.searchAttempts[searchEngineForUrl(p.url)]=true}}
+  opts=opts||{};var p=resolve(input);if(opts.search)p.search=opts.search;
+  if(p.kind==='web'&&p.search&&P.searchMode==='direct'&&!opts.forceProxy){openDirectUrl(p.url);return}
+  if(p.search){t.searchQuery=p.search;if(!opts.fallback){t.searchAttempts={};t.searchAttempts[searchEngineForUrl(p.url)]=true}}
   if(!opts.replace){t.stack=t.stack.slice(0,t.idx+1);t.stack.push(p);t.idx=t.stack.length-1}
   else t.stack[t.idx]=p;
   load(t);persist();
@@ -325,6 +331,7 @@ window.addEventListener('message',function(e){
   var d=e.data;if(!d||!d.mat)return;
   var t=tabs.find(function(x){return x.frame.contentWindow===e.source});
   if(d.mat==='key'){hotkey(d.key);return}
+  if(d.mat==='direct'){openDirectUrl(d.url);return}
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
   if(d.mat==='movie'){partySend(d);return}
   if(d.mat==='searchblocked'){
@@ -441,8 +448,9 @@ function shieldSwitches(){
 VIEWS.settings=function(){
   var eng=Object.keys(ENGINES).map(function(k){return '<option value="'+k+'"'+(k===P.engine?' selected':'')+'>'+esc(ENGINES[k][0])+'</option>'}).join('');
   var th=[['auto','Match my device'],['light','Light'],['dark','Dark']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]===P.theme?' selected':'')+'>'+x[1]+'</option>'}).join('');
-  return '<div class="wrap"><h1>Settings</h1><div class="card"><div class="grid"><div class="field"><label for="se">Search engine</label><select id="se" data-sel="engine">'+eng+'</select></div>'+
-    '<div class="field"><label for="st">Window theme</label><select id="st" data-sel="theme">'+th+'</select></div>'+
+  var sm=[['direct','Direct browser connection (best for Vercel)'],['proxy','MAT privacy proxy']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]===P.searchMode?' selected':'')+'>'+x[1]+'</option>'}).join('');
+  return '<div class="wrap"><h1>Settings</h1><div class="card"><div class="grid"><div class="field"><label for="se">Search engine</label><select id="se" data-sel="engine">'+eng+'</select></div>'+ 
+    '<div class="field"><label for="sc">Search connection</label><select id="sc" data-sel="searchMode">'+sm+'</select></div><div class="field"><label for="st">Window theme</label><select id="st" data-sel="theme">'+th+'</select></div>'+ 
     '<div class="field"><label for="sn">Your name on the start page</label><input type="text" id="sn" data-sel="name" value="'+esc(P.name)+'"></div></div></div>'+
     '<div class="card"><h3>Privacy switches</h3>'+shieldSwitches()+'</div>'+
     '<div class="card"><h3>Clean up</h3><div class="row2"><button class="btn danger" data-act="clearcookies">Delete site cookies</button><button class="btn danger" data-act="clearhist">Clear history</button></div></div></div>';
