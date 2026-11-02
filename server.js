@@ -98,9 +98,15 @@ function unwrapRedirector(u) {
 function searchFallbackUrl(u) {
   const q = u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('search') || '';
   if (!q) return null;
-  const fallback = new URL('https://search.brave.com/search');
-  fallback.searchParams.set('q', q);
-  return fallback;
+  // Vercel's shared egress addresses are frequently rejected by DuckDuckGo and
+  // Brave. Bing is the most reliable first fallback on the serverless runtime.
+  // Use a short ordered chain so a provider failure never leaves the user at a
+  // dead-end screen while keeping the entire journey inside MAT.
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  if (host === 'bing.com') return new URL('https://www.google.com/search?q=' + encodeURIComponent(q));
+  if (/^google\./.test(host)) return new URL('https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(q));
+  if (host.endsWith('wikipedia.org')) return null;
+  return new URL('https://www.bing.com/search?q=' + encodeURIComponent(q));
 }
 function searchRecoveryPage(query, failedHost) {
   const q = encodeURIComponent(query || '');
@@ -438,7 +444,12 @@ async function handleProxy(req, res) {
     const private_ = e.code === 'PRIVATE';
     if (!isNav(req)) return send(res, 502, 'text/plain', 'MAT could not load this.');
     const searchHost = SEARCH_HOSTS.has(u.hostname.toLowerCase().replace(/^www\./, '')) || SEARCH_HOSTS.has(u.hostname.toLowerCase());
-    if (!private_ && searchHost) return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(u.searchParams.get('q') || '', u.hostname));
+    if (!private_ && searchHost) {
+      const ctx = { sess, s: sess.s, blocked: 0 };
+      const fallback = searchFallbackUrl(u);
+      if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
+      return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(u.searchParams.get('q') || '', u.hostname));
+    }
     return send(res, private_ ? 403 : 502, 'text/html; charset=utf-8', errorPage(private_ ? 'Blocked for your safety' : 'This site did not respond',
       private_ ? e.message : 'MAT could not reach it. The address may be wrong, or the site may be down or refusing connections.', u.href));
   }
@@ -456,7 +467,7 @@ async function handleProxy(req, res) {
   const searchHost = SEARCH_HOSTS.has(u.hostname.toLowerCase().replace(/^www\./, '')) || SEARCH_HOSTS.has(u.hostname.toLowerCase());
   if (searchHost && [403, 408, 418, 429, 500, 502, 503, 504].includes(r.status)) {
     const fallback = searchFallbackUrl(u);
-    if (fallback && u.hostname.toLowerCase() !== 'search.brave.com') return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
+    if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
     if (fallback) return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(fallback.searchParams.get('q') || '', u.hostname));
   }
   if (/text\/html|application\/xhtml/i.test(ct)) {
@@ -464,6 +475,8 @@ async function handleProxy(req, res) {
     const upstreamText = sourceHtml.slice(0, 12000).toLowerCase();
     if (/duckduckgo\.com$/i.test(u.hostname) && /if this persists|anonymized error code|home-error|rate limit/.test(upstreamText)) {
       const query = u.searchParams.get('q') || '';
+      const fallback = searchFallbackUrl(u);
+      if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
       return send(res, 200, 'text/html; charset=utf-8', searchRecoveryPage(query, u.hostname));
     }
     const html = rewriteHtml(sourceHtml, u.href, ctx);

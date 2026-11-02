@@ -44,6 +44,9 @@ independently. Use a shared datastore such as Vercel KV or Redis before relying 
 - Web searches and normal pages stay inside MAT's internal tab view. If a provider blocks the server
   request, MAT shows an in-app recovery screen with alternate search routes instead of opening an
   external browser tab.
+- On Vercel, rejected search providers automatically fall back to Bing, then Google/Wikipedia when
+  available, while preserving the query and the MAT tab. This is necessary because some providers
+  reject shared cloud egress IPs even though the same URL works from localhost.
 - Shield: removes ad and tracker scripts, frames and pixels (about 140 hosts plus path rules), hides leftover ad boxes,
   strips utm_*, fbclid, gclid and other tracking tags, upgrades http to https, optionally turns off all page scripts
 - Site cookies are kept on the server so logins work, and never reach the browser window
