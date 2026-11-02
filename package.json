@@ -1,0 +1,9 @@
+{
+  "name": "mat-browser",
+  "version": "1.0.0",
+  "description": "A self-hosted browser that opens every site inside its own tabs and filters ads and trackers.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18.14" },
+  "license": "MIT"
+}
