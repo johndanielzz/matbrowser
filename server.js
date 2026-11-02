@@ -16,6 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const BL = require('./blocklist');
+const SEARCH_HOSTS = new Set(['duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'www.mojeek.com', 'www.bing.com', 'www.startpage.com', 'en.wikipedia.org', 'www.google.com', 'google.com']);
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = +process.env.PORT || 8080;
@@ -94,6 +95,13 @@ function unwrapRedirector(u) {
   } catch (e) { /* keep original */ }
   return u;
 }
+function searchFallbackUrl(u) {
+  const q = u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('search') || '';
+  if (!q) return null;
+  const fallback = new URL('https://search.brave.com/search');
+  fallback.searchParams.set('q', q);
+  return fallback;
+}
 function stripParams(u, sess) {
   const del = [];
   u.searchParams.forEach((v, k) => { if (/^utm_/i.test(k) || BL.TRACK_PARAMS.includes(k.toLowerCase())) del.push(k); });
@@ -147,7 +155,7 @@ function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified b
     try {
       var host = new URL(BASE).hostname.replace(/^www\./, '');
       var text = (document.body && document.body.innerText || '').slice(0, 1000).toLowerCase();
-      if (/duckduckgo\.com$/.test(host) && /if this persists|anonymized error code|email us|rate limit/.test(text)) tell('searchblocked', { engine: 'duckduckgo', url: BASE });
+      if (/if this persists|anonymized error code|home-error|rate limit|unusual traffic|captcha|temporarily unavailable|access denied|too many requests/.test(text)) tell('searchblocked', { engine: host, url: BASE });
     } catch (e) { /* ignore */ }
   }
   function movieState(v, action) { tell('movie', { url: BASE, action: action, time: Number(v.currentTime) || 0, playing: !v.paused }); }
@@ -275,7 +283,7 @@ function injection(base, ctx) {
   const s = ctx.s;
   const movieCss = s.movie ? '[class*="popup" i],[id*="popup" i],[class*="popunder" i],[id*="popunder" i],[class*="overlay" i][style*="position: fixed" i],[id*="overlay" i][style*="position: fixed" i],[class*="modal" i][style*="position: fixed" i],[id*="modal" i][style*="position: fixed" i],[class*="banner-ad" i],[id*="banner-ad" i]{display:none!important}body{overflow:auto!important}' : '';
   const css = (s.adblock ? BL.COSMETIC : '') + movieCss + (s.dark ? 'html{filter:invert(1) hue-rotate(180deg);background:#fff}img,video,picture,canvas,iframe,svg image,[style*="background-image"]{filter:invert(1) hue-rotate(180deg)}' : '');
-  const js = `(${clientFn.toString()})(${JSON.stringify(base).replace(/</g, '\\u003c')},${ctx.blocked},${s.movie ? 'true' : 'false'})`;
+  const js = `(${clientFn.toString()})(${JSON.stringify(base).replace(/</g, '\\u003c')},${ctx.blocked},${s.movie ? 'true' : 'false'})`.replace(/<\/script/gi, '<\\/script');
   return (css ? `<style>${css}</style>` : '') + `<script>${js}</script>`;
 }
 
@@ -286,6 +294,7 @@ function rewriteHtml(html, pageUrl, ctx) {
   if (bm) { try { base = new URL(ent(bm[1] || bm[2]), pageUrl).href; } catch (e) { /* ignore */ } }
   html = html.replace(/<base\b[^>]*>/gi, '');
   html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?(content-security-policy|x-frame-options)[^>]*>/gi, '');
+  html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?permissions-policy[^>]*>/gi, '');
   html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, tag =>
     tag.replace(/(url\s*=\s*['"]?)([^'">]+)/i, (m, pre, v) => pre + px(ent(v), base, ctx)));
 
@@ -429,8 +438,25 @@ async function handleProxy(req, res) {
   }
 
   const ct = r.headers.get('content-type') || '';
+  const searchHost = SEARCH_HOSTS.has(u.hostname.toLowerCase().replace(/^www\./, '')) || SEARCH_HOSTS.has(u.hostname.toLowerCase());
+  if (searchHost && [403, 408, 418, 429, 500, 502, 503, 504].includes(r.status)) {
+    const fallback = searchFallbackUrl(u);
+    if (fallback && u.hostname.toLowerCase() !== 'search.brave.com') return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
+    if (fallback) return send(res, 502, 'text/html; charset=utf-8', errorPage('Search provider unavailable', 'This provider rejected the request. Choose another engine in MAT Settings.'));
+  }
   if (/text\/html|application\/xhtml/i.test(ct)) {
-    const html = rewriteHtml(decodeText(Buffer.from(await r.arrayBuffer()), ct), u.href, ctx);
+    const sourceHtml = decodeText(Buffer.from(await r.arrayBuffer()), ct);
+    const upstreamText = sourceHtml.slice(0, 12000).toLowerCase();
+    if (/duckduckgo\.com$/i.test(u.hostname) && /if this persists|anonymized error code|home-error|rate limit/.test(upstreamText)) {
+      const query = u.searchParams.get('q') || '';
+      if (query) {
+        const fallback = new URL('https://search.brave.com/search');
+        fallback.searchParams.set('q', query);
+        return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
+      }
+      return send(res, 502, 'text/html; charset=utf-8', errorPage('Search provider unavailable', 'DuckDuckGo rejected this server request. Choose another search engine in MAT Settings.'));
+    }
+    const html = rewriteHtml(sourceHtml, u.href, ctx);
     sess.stats.blocked += ctx.blocked;
     return send(res, r.status, 'text/html; charset=utf-8', html);
   }

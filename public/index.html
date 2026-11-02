@@ -327,9 +327,9 @@ window.addEventListener('message',function(e){
   if(d.mat==='key'){hotkey(d.key);return}
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
   if(d.mat==='movie'){partySend(d);return}
-  if(d.mat==='searchblocked'&&d.engine==='duckduckgo'){
+  if(d.mat==='searchblocked'){
     var blockedQuery='';try{blockedQuery=new URL(d.url).searchParams.get('q')||''}catch(x){}
-    if(blockedQuery){fallbackSearch(t||cur(),blockedQuery,'duckduckgo');return}
+    if(blockedQuery){fallbackSearch(t||cur(),blockedQuery,d.engine||'search provider');return}
   }
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
   try {
