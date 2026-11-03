@@ -17,6 +17,7 @@ const path = require('path');
 const { Readable } = require('stream');
 const BL = require('./blocklist');
 const SEARCH_HOSTS = new Set(['duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'www.mojeek.com', 'www.bing.com', 'www.startpage.com', 'en.wikipedia.org', 'www.google.com', 'google.com']);
+const VERCEL_BLOCKED_SEARCH_HOSTS = new Set(['duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'mojeek.com', 'startpage.com']);
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = +process.env.PORT || 8080;
@@ -421,6 +422,18 @@ async function handleProxy(req, res) {
   if (!/^https?:$/.test(u.protocol)) return send(res, 400, 'text/html; charset=utf-8', errorPage('Unsupported address', 'MAT opens http and https addresses.', u.href));
   u = unwrapRedirector(u);
   if (sess.s.adblock && BL.isBlocked(u)) return blocked(req, res, sess, u.hostname);
+
+  // Search providers can reject Vercel's shared cloud egress as soon as a real
+  // query is present. Route those known-hostile query requests to a reliable
+  // provider before the upstream request, so the user gets results in MAT
+  // instead of an upstream error page. Empty queries still open the provider's
+  // homepage normally.
+  const requestedHost = u.hostname.toLowerCase().replace(/^www\./, '');
+  const hasSearchQuery = !!(u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('search'));
+  if (process.env.VERCEL && req.method === 'GET' && hasSearchQuery && VERCEL_BLOCKED_SEARCH_HOSTS.has(requestedHost)) {
+    const fallback = searchFallbackUrl(u);
+    if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, { sess, s: sess.s, blocked: 0 }) });
+  }
 
   const body = req.method === 'GET' || req.method === 'HEAD' ? null : await readBody(req);
   let r, upgraded = false;

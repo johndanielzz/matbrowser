@@ -193,7 +193,6 @@ var ENGINES={
  var SEARCH_FALLBACKS=['bing','google','wikipedia'];
 var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitHub',url:'https://github.com/'},{title:'Hacker News',url:'https://news.ycombinator.com/'},{title:'MDN Web Docs',url:'https://developer.mozilla.org/'},{title:'OpenStreetMap',url:'https://www.openstreetmap.org/'},{title:'Internet Archive',url:'https://archive.org/'}];
  var P=Object.assign({engine:'bing',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false,searchMode:'proxy'},ls.get('prefs',{}));
-if(P.engine==='duckduckgo'){P.engine='brave';try{localStorage.setItem('mat.prefs',JSON.stringify(P))}catch(e){}}
 if(!ENGINES[P.engine])P.engine='brave';
  /* Keep every page inside MAT. Older builds stored "direct" for Vercel; migrate that preference. */
  if(P.searchMode!=='proxy'){P.searchMode='proxy';try{localStorage.setItem('mat.prefs',JSON.stringify(P))}catch(e){}}
