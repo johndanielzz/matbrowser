@@ -1,7 +1,8 @@
 # MAT Browser
 
-A browser that runs in your browser window. Every site opens inside MAT's own tabs and nothing redirects you elsewhere.
-MAT fetches each page on its server, removes ads and trackers, then shows you the clean result.
+MAT has two supported runtimes: a hosted web workspace and a real desktop browser powered by Electron/Chromium.
+The desktop runtime loads sites directly in native browser tabs, while the hosted runtime uses the privacy proxy
+where a normal website's security rules allow it.
 
 ## Run it
 
@@ -13,6 +14,18 @@ Open http://127.0.0.1:8080
 
 Before pushing or redeploying, run `npm run verify` to validate both the local server and Vercel function entry point.
 
+## Real desktop browser
+
+For unrestricted, native Chromium browsing inside MAT tabs, install the desktop runtime:
+
+    npm install
+    npm run desktop
+
+The desktop app keeps the MAT tab bar, bookmarks, history, Movie Mode and privacy controls, but pages are loaded by
+Chromium directly instead of an iframe. This is the reliable option for sites that reject Vercel IPs, deny framing,
+or require modern JavaScript, login flows, media playback, and WebSockets. Ad/tracker requests are blocked locally
+by the desktop session; site permissions are denied by default.
+
 ## Install as an app
 
 Open MAT Browser in a Chromium-based browser and choose **Install MAT Browser** from the address-bar install button or
@@ -22,6 +35,9 @@ the browser menu. The app manifest, service worker, and matching MAT icon are in
 
 This repository includes `vercel.json` and a serverless adapter at `api/index.mjs`. Push the project to GitHub, import the
 repository in Vercel, and deploy with the default Node.js settings. For local use, continue to run `npm start`.
+
+Vercel cannot become a full native browser because browser security policies prevent a website from embedding every
+other website. Use `npm run desktop` for the real browsing runtime.
 
 The proxy keeps session state in memory. A single local process is the recommended deployment for persistent site
 cookies; serverless deployments may lose sessions when functions scale down or restart.
@@ -40,7 +56,7 @@ independently. Use a shared datastore such as Vercel KV or Redis before relying 
 
 - Tabs, private tabs, back and forward per tab, bookmarks bar, history, speed dial, zoom
 - Address bar that searches or opens sites, with suggestions from the web, your bookmarks and your history
-- Search engines: DuckDuckGo, Brave, Mojeek, Bing, Startpage, Wikipedia, Google
+- Search engines: DuckDuckGo, Brave, Mojeek, Bing, Startpage, Wikipedia, Google, Yahoo, Ecosia and Qwant
 - Web searches and normal pages stay inside MAT's internal tab view. If a provider blocks the server
   request, MAT shows an in-app recovery screen with alternate search routes instead of opening an
   external browser tab.

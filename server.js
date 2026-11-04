@@ -16,8 +16,17 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const BL = require('./blocklist');
-const SEARCH_HOSTS = new Set(['duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'www.mojeek.com', 'www.bing.com', 'www.startpage.com', 'en.wikipedia.org', 'www.google.com', 'google.com']);
-const VERCEL_BLOCKED_SEARCH_HOSTS = new Set(['duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'mojeek.com', 'startpage.com']);
+const SEARCH_HOSTS = new Set([
+  'duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'www.mojeek.com',
+  'www.bing.com', 'bing.com', 'www.startpage.com', 'startpage.com',
+  'en.wikipedia.org', 'wikipedia.org', 'www.google.com', 'google.com',
+  'search.yahoo.com', 'yahoo.com', 'www.ecosia.org', 'ecosia.org',
+  'www.qwant.com', 'qwant.com'
+]);
+const VERCEL_BLOCKED_SEARCH_HOSTS = new Set([
+  'duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com',
+  'mojeek.com', 'startpage.com', 'qwant.com'
+]);
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = +process.env.PORT || 8080;
@@ -97,7 +106,7 @@ function unwrapRedirector(u) {
   return u;
 }
 function searchFallbackUrl(u) {
-  const q = u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('search') || '';
+  const q = u.searchParams.get('q') || u.searchParams.get('p') || u.searchParams.get('query') || u.searchParams.get('search') || '';
   if (!q) return null;
   // Vercel's shared egress addresses are frequently rejected by DuckDuckGo and
   // Brave. Bing is the most reliable first fallback on the serverless runtime.
@@ -112,10 +121,12 @@ function searchFallbackUrl(u) {
 function searchRecoveryPage(query, failedHost) {
   const q = encodeURIComponent(query || '');
   const links = [
-    ['Brave Search', `https://search.brave.com/search?q=${q}`],
     ['Bing', `https://www.bing.com/search?q=${q}`],
-    ['DuckDuckGo', `https://duckduckgo.com/?q=${q}`],
     ['Google', `https://www.google.com/search?q=${q}`],
+    ['DuckDuckGo', `https://duckduckgo.com/?q=${q}`],
+    ['Brave Search', `https://search.brave.com/search?q=${q}`],
+    ['Yahoo', `https://search.yahoo.com/search?p=${q}`],
+    ['Ecosia', `https://www.ecosia.org/search?q=${q}`],
     ['Wikipedia', `https://en.wikipedia.org/w/index.php?search=${q}`]
   ];
   const buttons = links.map(([label, url]) => `<button data-direct="${url.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">Open ${label} inside MAT</button>`).join('');
@@ -429,7 +440,7 @@ async function handleProxy(req, res) {
   // instead of an upstream error page. Empty queries still open the provider's
   // homepage normally.
   const requestedHost = u.hostname.toLowerCase().replace(/^www\./, '');
-  const hasSearchQuery = !!(u.searchParams.get('q') || u.searchParams.get('query') || u.searchParams.get('search'));
+  const hasSearchQuery = !!(u.searchParams.get('q') || u.searchParams.get('p') || u.searchParams.get('query') || u.searchParams.get('search'));
   if (process.env.VERCEL && req.method === 'GET' && hasSearchQuery && VERCEL_BLOCKED_SEARCH_HOSTS.has(requestedHost)) {
     const fallback = searchFallbackUrl(u);
     if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, { sess, s: sess.s, blocked: 0 }) });

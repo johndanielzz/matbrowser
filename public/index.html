@@ -82,7 +82,7 @@ code,.mono{font-family:var(--font-mono);font-size:.92em}
 #stage{flex:1;min-height:0;position:relative;background:var(--surface)}
 .pane{position:absolute;inset:0;display:none}
 .pane.active{display:block}
-.pane iframe{width:100%;height:100%;border:0;background:#fff;transform-origin:0 0}
+.pane iframe,.pane webview{width:100%;height:100%;border:0;background:#fff;transform-origin:0 0}
 .pane .int{position:absolute;inset:0;overflow:auto;padding:clamp(18px,4vw,32px) clamp(14px,4vw,28px) 56px;background:var(--surface);-webkit-overflow-scrolling:touch}
 #status{flex:none;display:flex;gap:16px;align-items:center;padding:4px 12px;padding-bottom:max(4px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--chrome);font:11px var(--font-mono);color:var(--muted)}
 #status .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -188,10 +188,14 @@ var ENGINES={
   bing:['Bing','https://www.bing.com/search?q='],
   startpage:['Startpage','https://www.startpage.com/do/search?q='],
   wikipedia:['Wikipedia','https://en.wikipedia.org/w/index.php?search='],
-  google:['Google','https://www.google.com/search?q=']
-};
- var SEARCH_FALLBACKS=['bing','google','wikipedia'];
+  google:['Google','https://www.google.com/search?q='],
+  yahoo:['Yahoo','https://search.yahoo.com/search?p='],
+  ecosia:['Ecosia','https://www.ecosia.org/search?q='],
+  qwant:['Qwant','https://www.qwant.com/?q=']
+ };
+ var SEARCH_FALLBACKS=['bing','google','yahoo','ecosia','wikipedia'];
 var DEFAULT_BM=[{title:'Wikipedia',url:'https://en.wikipedia.org/'},{title:'GitHub',url:'https://github.com/'},{title:'Hacker News',url:'https://news.ycombinator.com/'},{title:'MDN Web Docs',url:'https://developer.mozilla.org/'},{title:'OpenStreetMap',url:'https://www.openstreetmap.org/'},{title:'Internet Archive',url:'https://archive.org/'}];
+ var IS_DESKTOP=!!(window.matDesktop&&window.matDesktop.realBrowser);
  var P=Object.assign({engine:'bing',theme:'auto',name:'',adblock:true,strip:true,https:true,cookies:true,nojs:false,dark:false,movie:false,searchMode:'proxy'},ls.get('prefs',{}));
 if(!ENGINES[P.engine])P.engine='brave';
  /* Keep every page inside MAT. Older builds stored "direct" for Vercel; migrate that preference. */
@@ -227,7 +231,7 @@ function partySend(d){if(!partyRoom)return;d.source=partyClient;partyLast=d.acti
 function partyPoll(){if(!partyRoom)return;fetch('/api/party/state?room='+encodeURIComponent(partyRoom)).then(function(r){if(r.status===404){partyRoom='';toast('Watch party expired or is unavailable');return null}return r.ok?r.json():null}).then(function(d){if(!d||!d.action||d.source===partyClient)return;var t=cur();if(d.url&&t&&page(t).url!==d.url){nav(t,d.url);return}if(t&&t.frame&&t.frame.contentWindow)t.frame.contentWindow.postMessage({mat:'moviecmd',action:d.action,time:d.time},'*')}).catch(function(){})}
 function contentOrigin(){return CFG.contentOrigin||(CFG.contentPort?location.protocol+'//'+location.hostname+':'+CFG.contentPort:location.origin)}
 function proxyUrl(u){return contentOrigin()+'/proxy?u='+encodeURIComponent(u)}
-function searchEngineForUrl(url){try{var host=new URL(url).hostname.replace(/^www\./,'');if(/duckduckgo/.test(host))return 'duckduckgo';if(/search\.brave\.com/.test(host))return 'brave';if(/mojeek/.test(host))return 'mojeek';if(/bing\.com/.test(host))return 'bing';if(/startpage/.test(host))return 'startpage';if(/wikipedia\.org/.test(host))return 'wikipedia';if(/google\./.test(host))return 'google'}catch(e){}return ''}
+function searchEngineForUrl(url){try{var host=new URL(url).hostname.replace(/^www\./,'');if(/duckduckgo/.test(host))return 'duckduckgo';if(/search\.brave\.com/.test(host))return 'brave';if(/mojeek/.test(host))return 'mojeek';if(/bing\.com/.test(host))return 'bing';if(/startpage/.test(host))return 'startpage';if(/wikipedia\.org/.test(host))return 'wikipedia';if(/google\./.test(host))return 'google';if(/yahoo\./.test(host))return 'yahoo';if(/ecosia\./.test(host))return 'ecosia';if(/qwant\./.test(host))return 'qwant'}catch(e){}return ''}
 function fallbackSearch(t,query,failed){
   if(!query)return false;t=t||cur();t.searchAttempts=t.searchAttempts||{};t.searchAttempts[failed]=true;
   var next=SEARCH_FALLBACKS.find(function(k){return !t.searchAttempts[k]});
@@ -256,14 +260,34 @@ function resolve(input){
 /* ---------- tabs ---------- */
 function cur(){for(var i=0;i<tabs.length;i++)if(tabs[i].id===activeId)return tabs[i];return tabs[0]}
 function page(t){return (t||cur()).stack[(t||cur()).idx]}
-function makeTab(priv){
-  var t={id:nid++,priv:!!priv,stack:[],idx:-1,loading:false,expecting:false,blocked:0,zoom:1};
-  var pane=document.createElement('div');pane.className='pane';pane.id='pane'+t.id;
-  var int=document.createElement('div');int.className='int';
-  var fr=document.createElement('iframe');
-  fr.title='Page';fr.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation');
-  fr.setAttribute('allow','fullscreen; autoplay; clipboard-write');fr.hidden=true;
-  fr.addEventListener('load',function(){if(t.web){t.loading=false;draw()}});
+ function updateNativePage(t,url,title){
+   if(!t||!t.web||!/^https?:\/\//i.test(url||''))return;
+   var p=page(t);
+   if(p.url!==url){
+     if(t.expecting){t.stack[t.idx]={kind:'web',url:url,title:title||new URL(url).hostname.replace(/^www\./,'')};t.expecting=false}
+     else{t.stack=t.stack.slice(0,t.idx+1);t.stack.push({kind:'web',url:url,title:title||new URL(url).hostname.replace(/^www\./,'')});t.idx=t.stack.length-1}
+     persist();
+   }else if(title)p.title=title;
+   draw();
+ }
+ function makeTab(priv){
+   var t={id:nid++,priv:!!priv,stack:[],idx:-1,loading:false,expecting:false,blocked:0,zoom:1,native:IS_DESKTOP};
+   var pane=document.createElement('div');pane.className='pane';pane.id='pane'+t.id;
+   var int=document.createElement('div');int.className='int';
+   var fr=document.createElement(t.native?'webview':'iframe');
+   fr.title='Page';fr.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation');
+   fr.setAttribute('allow','fullscreen; autoplay; clipboard-write');
+   if(t.native){fr.setAttribute('partition','persist:mat-browse');fr.setAttribute('webpreferences','contextIsolation=yes,nodeIntegration=no,sandbox=yes');}
+   fr.hidden=true;
+   fr.addEventListener('load',function(){if(t.web){t.loading=false;draw()}});
+   if(t.native){
+     fr.addEventListener('did-start-loading',function(){if(t.web){t.loading=true;draw()}});
+     fr.addEventListener('did-stop-loading',function(){if(t.web){t.loading=false;draw()}});
+     fr.addEventListener('did-navigate',function(e){updateNativePage(t,e.url,'')});
+     fr.addEventListener('did-navigate-in-page',function(e){updateNativePage(t,e.url,'')});
+     fr.addEventListener('page-title-updated',function(e){var p=page(t);if(p&&p.kind==='web'){p.title=e.title||p.title;draw()}});
+     fr.addEventListener('did-fail-load',function(e){if(t.web&&e.errorCode!==-3){t.loading=false;toast('Page could not load: '+e.errorDescription);draw()}});
+   }
   pane.appendChild(int);pane.appendChild(fr);$('#stage').appendChild(pane);
   t.pane=pane;t.int=int;t.frame=fr;tabs.push(t);return t;
 }
@@ -285,8 +309,8 @@ function nav(t,input,opts){
 function load(t){
   var p=page(t);
   if(p.kind==='web'){
-    t.web=true;t.loading=true;t.expecting=true;t.blocked=0;
-    t.frame.hidden=false;t.int.hidden=true;t.frame.src=proxyUrl(p.url);
+     t.web=true;t.loading=true;t.expecting=true;t.blocked=0;
+     t.frame.hidden=false;t.int.hidden=true;t.frame.src=t.native?p.url:proxyUrl(p.url);
   }else{
     t.web=false;t.loading=false;t.frame.hidden=true;t.frame.removeAttribute('src');t.int.hidden=false;
     t.int.innerHTML=VIEWS[p.kind]();
@@ -332,7 +356,7 @@ window.addEventListener('message',function(e){
   if(d.mat==='open'){if(/^https?:\/\//i.test(d.url||''))newTab(d.url,t&&t.priv);return}
   if(d.mat==='movie'){partySend(d);return}
   if(d.mat==='searchblocked'){
-    var blockedQuery='';try{blockedQuery=new URL(d.url).searchParams.get('q')||''}catch(x){}
+    var blockedQuery='';try{var bq=new URL(d.url).searchParams;blockedQuery=bq.get('q')||bq.get('p')||bq.get('query')||bq.get('search')||''}catch(x){}
     if(blockedQuery){fallbackSearch(t||cur(),blockedQuery,d.engine||'search provider');return}
   }
   if(!t||d.mat!=='page'||!/^https?:\/\//i.test(d.url||''))return;
@@ -407,8 +431,8 @@ function sw(label,desc,key){return '<label class="sw"><span><b style="font-weigh
 VIEWS.start=function(){
   var h=new Date().getHours(),g=h<5?'Still up':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
   var dials=BM.slice(0,12).map(function(b){return '<button class="dial" data-go="'+esc(b.url)+'"><span class="ico">'+esc((b.title||'?').charAt(0).toUpperCase())+'</span><b>'+esc(b.title)+'</b></button>'}).join('');
-  return '<div class="wrap"><div><div class="mono muted" id="clock"></div><h1 style="margin-top:6px">'+g+(P.name?', '+esc(P.name):'')+'.</h1>'+
-    '<p class="muted" style="margin-top:6px">Everything opens right here. Searching with '+esc(ENGINES[P.engine][0])+'. Ads and trackers are filtered before a page reaches you.</p></div>'+
+   return '<div class="wrap"><div><div class="mono muted" id="clock"></div><h1 style="margin-top:6px">'+g+(P.name?', '+esc(P.name):'')+'.</h1>'+
+     '<p class="muted" style="margin-top:6px">'+(IS_DESKTOP?'Real Chromium browsing is active. Pages open directly inside MAT tabs.':'Everything opens right here. Searching with '+esc(ENGINES[P.engine][0])+'. Ads and trackers are filtered before a page reaches you.')+'</p></div>'+
     '<form class="bigsearch" data-form="startsearch"><input type="search" id="startq" aria-label="Search" placeholder="Search the web or enter an address" autofocus><button class="btn primary" type="submit">Go</button></form>'+
     '<section><h2>Speed dial</h2><div class="dials" style="margin-top:12px">'+(dials||'<p class="muted">Bookmark a page and it shows up here.</p>')+'</div></section>'+
     '<section><h2>Shield, this session</h2><div class="grid" style="margin-top:12px">'+stat(stats.blocked,'ad and tracker requests blocked')+stat(stats.stripped,'tracking tags removed')+stat(stats.upgraded,'pages upgraded to HTTPS')+'</div></section></div>';
