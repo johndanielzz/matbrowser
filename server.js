@@ -338,6 +338,11 @@ function rewriteHtml(html, pageUrl, ctx) {
   html = html.replace(/<base\b[^>]*>/gi, '');
   html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?(content-security-policy|x-frame-options)[^>]*>/gi, '');
   html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?permissions-policy[^>]*>/gi, '');
+  // Search pages emit speculative cross-origin prefetches. Inside MAT's
+  // sandbox those requests have an opaque origin and Chromium reports noisy
+  // CORS failures even when the visible page loaded correctly. They are not
+  // required for browsing, so remove them before serving the document.
+  html = html.replace(/<link\b[^>]*\brel\s*=\s*["']?(?:prefetch|prerender|modulepreload)["']?[^>]*>/gi, '');
   html = html.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, tag =>
     tag.replace(/(url\s*=\s*['"]?)([^'">]+)/i, (m, pre, v) => pre + px(ent(v), base, ctx)));
 
