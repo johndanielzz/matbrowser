@@ -222,16 +222,17 @@ function saveData(){ls.set('bookmarks',BM);ls.set('history',HIST)}
 function applyTheme(){var r=document.documentElement;if(P.theme==='light'||P.theme==='dark')r.setAttribute('data-theme',P.theme);else r.removeAttribute('data-theme')}
 var tt;function toast(m){var e=$('#toast');e.textContent=m;e.hidden=false;clearTimeout(tt);tt=setTimeout(function(){e.hidden=true},2000)}
 var installEvent=null;
-window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvent=e;var box=$('#install');var dismissed=false;try{dismissed=localStorage.getItem('mat.installDismissed')==='1'}catch(x){}if(box&&!dismissed){box.hidden=false;box.style.display='flex'}});
-function dismissInstall(e){if(e){e.preventDefault();e.stopImmediatePropagation()}var box=$('#install');if(box){box.hidden=true;box.style.display='none';box.setAttribute('aria-hidden','true')}try{localStorage.setItem('mat.installDismissed','1')}catch(x){}}
-function bindInstallControls(){var close=$('#installclose');if(close)close.addEventListener('click',dismissInstall,{capture:true});var go=$('#installgo');if(go)go.addEventListener('click',function(e){if(!installEvent)return;e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(function(){var box=$('#install');if(box)box.hidden=true})},{capture:true})}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvent=e;var box=$('#install');var dismissed=false;try{dismissed=localStorage.getItem('mat.installDismissed')==='1'}catch(x){}if(box&&!dismissed){box.hidden=false;box.style.display='flex';box.setAttribute('aria-hidden','false');box.inert=false}});
+function dismissInstall(e){if(e){e.preventDefault();e.stopImmediatePropagation()}var box=$('#install');if(box){if(box.contains(document.activeElement)&&document.activeElement.blur)document.activeElement.blur();box.hidden=true;box.style.display='none';box.setAttribute('aria-hidden','true');box.inert=true}try{localStorage.setItem('mat.installDismissed','1')}catch(x){}}
+function finishInstall(){var box=$('#install');if(box){if(box.contains(document.activeElement)&&document.activeElement.blur)document.activeElement.blur();box.hidden=true;box.style.display='none';box.inert=true}}
+function bindInstallControls(){var close=$('#installclose');if(close)close.addEventListener('click',dismissInstall,{capture:true});var go=$('#installgo');if(go)go.addEventListener('click',function(e){if(!installEvent)return;e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(finishInstall)},{capture:true})}
 document.addEventListener('click',function(e){
   var close=e.target&&e.target.closest?e.target.closest('#installclose'):null;
   if(close){dismissInstall(e);return}
   var go=e.target&&e.target.closest?e.target.closest('#installgo'):null;
-  if(go&&installEvent){e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(function(){var box=$('#install');if(box)box.hidden=true})}
+  if(go&&installEvent){e.preventDefault();e.stopPropagation();var p=installEvent;installEvent=null;p.prompt();p.userChoice.then(finishInstall)}
 });
-window.addEventListener('appinstalled',function(){$('#install').hidden=true;toast('MAT Browser installed')});
+window.addEventListener('appinstalled',function(){finishInstall();toast('MAT Browser installed')});
 bindInstallControls();
 function pushServer(){
   fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({adblock:P.adblock,strip:P.strip,https:P.https,cookies:P.cookies,nojs:P.nojs,dark:P.dark,movie:P.movie})}).catch(function(){});
@@ -244,6 +245,10 @@ function proxyUrl(u){return contentOrigin()+'/proxy?u='+encodeURIComponent(u)}
 function searchEngineForUrl(url){try{var host=new URL(url).hostname.replace(/^www\./,'');if(/duckduckgo/.test(host))return 'duckduckgo';if(/search\.brave\.com/.test(host))return 'brave';if(/mojeek/.test(host))return 'mojeek';if(/bing\.com/.test(host))return 'bing';if(/startpage/.test(host))return 'startpage';if(/wikipedia\.org/.test(host))return 'wikipedia';if(/google\./.test(host))return 'google';if(/yahoo\./.test(host))return 'yahoo';if(/ecosia\./.test(host))return 'ecosia';if(/qwant\./.test(host))return 'qwant'}catch(e){}return ''}
 function fallbackSearch(t,query,failed){
   if(!query)return false;t=t||cur();t.searchAttempts=t.searchAttempts||{};t.searchAttempts[failed]=true;
+  if(/^duckduckgo\.com$/i.test(failed)||/^html\.duckduckgo\.com$/i.test(failed)){
+    var ddg='https://html.duckduckgo.com/html/?q='+encodeURIComponent(query);
+    if(!t.searchAttempts.ddgHtml){t.searchAttempts.ddgHtml=true;toast('DuckDuckGo is switching to its lightweight results page');nav(t,ddg,{search:query,fallback:true});return true}
+  }
   var next=SEARCH_FALLBACKS.find(function(k){return !t.searchAttempts[k]});
   if(!next){toast('Search provider unavailable. Try another engine in Settings.');return false}
   t.searchAttempts[next]=true;toast((ENGINES[failed]&&ENGINES[failed][0]||'Search provider')+' rejected the request; trying '+ENGINES[next][0]);nav(t,ENGINES[next][1]+encodeURIComponent(query),{search:query,fallback:true});return true;
@@ -285,7 +290,7 @@ function page(t){return (t||cur()).stack[(t||cur()).idx]}
    var pane=document.createElement('div');pane.className='pane';pane.id='pane'+t.id;
    var int=document.createElement('div');int.className='int';
    var fr=document.createElement(t.native?'webview':'iframe');
-   fr.title='Page';fr.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation');
+   fr.title='Page';if(!t.native)fr.setAttribute('sandbox','allow-scripts allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation');
    fr.setAttribute('allow','fullscreen; autoplay; clipboard-write');
    if(t.native){fr.setAttribute('partition','persist:mat-browse');fr.setAttribute('webpreferences','contextIsolation=yes,nodeIntegration=no,sandbox=yes');}
    fr.hidden=true;

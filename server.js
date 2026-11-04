@@ -17,14 +17,14 @@ const path = require('path');
 const { Readable } = require('stream');
 const BL = require('./blocklist');
 const SEARCH_HOSTS = new Set([
-  'duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com', 'www.mojeek.com',
+  'duckduckgo.com', 'html.duckduckgo.com', 'lite.duckduckgo.com', 'search.brave.com', 'www.mojeek.com',
   'www.bing.com', 'bing.com', 'www.startpage.com', 'startpage.com',
   'en.wikipedia.org', 'wikipedia.org', 'www.google.com', 'google.com',
   'search.yahoo.com', 'yahoo.com', 'www.ecosia.org', 'ecosia.org',
   'www.qwant.com', 'qwant.com'
 ]);
 const VERCEL_BLOCKED_SEARCH_HOSTS = new Set([
-  'duckduckgo.com', 'html.duckduckgo.com', 'search.brave.com',
+  'search.brave.com',
   'mojeek.com', 'startpage.com', 'qwant.com'
 ]);
 
@@ -113,6 +113,15 @@ function searchFallbackUrl(u) {
   // Use a short ordered chain so a provider failure never leaves the user at a
   // dead-end screen while keeping the entire journey inside MAT.
   const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  if ((host === 'duckduckgo.com' || host === 'html.duckduckgo.com') && u.pathname !== '/html/') {
+    return new URL('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q));
+  }
+  if (host === 'html.duckduckgo.com') {
+    return new URL('https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(q));
+  }
+  if (host === 'lite.duckduckgo.com') {
+    return new URL('https://www.bing.com/search?q=' + encodeURIComponent(q));
+  }
   if (host === 'bing.com') return new URL('https://www.google.com/search?q=' + encodeURIComponent(q));
   if (/^google\./.test(host)) return new URL('https://en.wikipedia.org/w/index.php?search=' + encodeURIComponent(q));
   if (host.endsWith('wikipedia.org')) return null;
@@ -165,6 +174,9 @@ function rewriteCss(css, base, ctx) {
 }
 
 function clientFn(BASE, BLOCKED, MOVIE) { // runs inside the page; stringified by the server
+  // A few search pages call this legacy analytics hook unconditionally. Keep a
+  // no-op shim so those pages do not throw before their real results render.
+  var sj_evt = window.sj_evt = window.sj_evt || { fire: function(){}, bind: function(){}, unbind: function(){}, trigger: function(){} };
   var P = '/proxy?u=';
   function px(u) {
     try {
