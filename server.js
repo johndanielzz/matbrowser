@@ -496,6 +496,14 @@ async function handleProxy(req, res) {
   const ctx = { sess, s: sess.s, blocked: 0 };
   if ([301, 302, 303, 307, 308].includes(r.status) && r.headers.get('location')) {
     let loc; try { loc = new URL(r.headers.get('location'), u); } catch (e) { return send(res, 502, 'text/plain', 'Bad redirect'); }
+    // DuckDuckGo's 418 redirect drops the original q= parameter. Preserve it
+    // and use its HTML endpoint before the query is lost.
+    const originalHost = u.hostname.toLowerCase().replace(/^www\./, '');
+    if ((originalHost === 'duckduckgo.com' || originalHost === 'html.duckduckgo.com') &&
+        /duckduckgo\.com$/i.test(loc.hostname) && /home-error|\/418\.html/i.test(loc.pathname)) {
+      const fallback = searchFallbackUrl(u);
+      if (fallback) return send(res, 302, 'text/plain', '', { Location: proxify(fallback, sess.s, ctx) });
+    }
     return send(res, r.status, 'text/plain', '', { Location: proxify(loc, sess.s, ctx) });
   }
 
