@@ -8,7 +8,14 @@
     "desktop": "electron .",
     "verify": "node --check server.js && node --check api/index.mjs && node --check desktop/main.cjs && node --check desktop/preload.cjs"
   },
-  "devDependencies": { "electron": "^45.2.2" },
-  "engines": { "node": ">=18.14" },
-  "license": "MIT"
+  "devDependencies": {
+    "electron": "^45.2.2"
+  },
+  "engines": {
+    "node": ">=18.14"
+  },
+  "license": "MIT",
+  "allowScripts": {
+    "electron@45.2.2": true
+  }
 }

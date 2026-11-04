@@ -24,14 +24,14 @@
   --bg:#0D1015;--chrome:#151A21;--surface:#1A212A;--surface-2:#212A35;--fg:#E6EAF0;--muted:#9AA5B3;--line:#2C3746;
   --accent:#8196FF;--accent-fg:#0D1015;--accent-soft:#252E5C;--ok:#3DD6A5;--ok-soft:#12372C;--warn:#E5B454;--warn-soft:#3B2E10;--bad:#FF7F75;--bad-soft:#40201D;--priv:#C5A8FF;--priv-soft:#2F2250;color-scheme:dark}
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--font-body);overflow:hidden;-webkit-tap-highlight-color:transparent}
+ html,body{height:100%;min-height:100%;margin:0}
+ body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--font-body);overflow:hidden;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;text-rendering:optimizeLegibility}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 a{color:var(--accent)}
 code,.mono{font-family:var(--font-mono);font-size:.92em}
-#app{display:flex;flex-direction:column;height:100%}
+ #app{display:flex;flex-direction:column;height:100%;min-height:100dvh}
 .chrome{background:var(--chrome);flex:none;position:relative}
 .tabbar{display:flex;align-items:flex-end;gap:6px;padding:8px 8px 0}
 .brand{font:700 15px var(--font-display);letter-spacing:.14em;padding:0 8px 10px 4px;flex:none}
@@ -82,7 +82,7 @@ code,.mono{font-family:var(--font-mono);font-size:.92em}
 #stage{flex:1;min-height:0;position:relative;background:var(--surface)}
 .pane{position:absolute;inset:0;display:none}
 .pane.active{display:block}
-.pane iframe,.pane webview{width:100%;height:100%;border:0;background:#fff;transform-origin:0 0}
+ .pane iframe,.pane webview{display:block;width:100%;height:100%;min-height:0;border:0;background:#fff;transform-origin:0 0}
 .pane .int{position:absolute;inset:0;overflow:auto;padding:clamp(18px,4vw,32px) clamp(14px,4vw,28px) 56px;background:var(--surface);-webkit-overflow-scrolling:touch}
 #status{flex:none;display:flex;gap:16px;align-items:center;padding:4px 12px;padding-bottom:max(4px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--chrome);font:11px var(--font-mono);color:var(--muted)}
 #status .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -126,20 +126,30 @@ input[type=text],input[type=search],select{background:var(--surface-2);border:1p
 .chip.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .chip.priv{background:var(--priv-soft);color:var(--priv);border-color:transparent}
 #toast{position:fixed;left:50%;bottom:calc(44px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:999px;font-weight:500;z-index:60;pointer-events:none;max-width:calc(100vw - 28px);text-align:center}
-#install{position:fixed;left:14px;right:14px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:55;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 14px 34px rgba(0,0,0,.2)}
+ #install{position:fixed;left:max(10px,env(safe-area-inset-left));right:max(10px,env(safe-area-inset-right));bottom:calc(52px + env(safe-area-inset-bottom));z-index:55;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 14px 34px rgba(0,0,0,.2)}
 #install p{flex:1;min-width:0;font-size:13px}#install .btn{padding:7px 11px;white-space:nowrap}
 @media (max-width:700px){.brand{display:none}.toolbar{flex-wrap:wrap}#omni{order:5;flex-basis:100%}.bigsearch{flex-direction:column}}
 @media (max-width:900px){.tab{width:170px}.tabbar{padding-left:6px;padding-right:6px}.toolbar{padding-left:6px;padding-right:6px}.shieldbtn{padding:0 7px}}
-@media (max-width:700px){
-  .chrome{padding-top:env(safe-area-inset-top)}
+ @media (max-width:700px){
+   html,body{height:100dvh}
+   .chrome{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+   #status{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
   .tabbar{gap:3px;padding-top:5px}.tab{width:min(46vw,180px);max-width:none;padding-left:9px;gap:6px}.tab .x{width:28px;height:28px}
   .toolbar{gap:2px;padding-top:5px;padding-bottom:5px}.ib{width:40px;height:40px}.shieldbtn{width:40px;padding:0}.shieldbtn span{display:none}
   #omni{order:10;flex:1 0 100%;margin-top:3px}#omniwrap{height:42px;padding:0 13px}#omnibox{height:40px;font-size:16px}
   #sugg{top:46px}.pop{position:fixed;right:8px;top:calc(env(safe-area-inset-top) + 112px);max-width:calc(100vw - 16px);min-width:0;width:min(330px,calc(100vw - 16px));max-height:calc(100dvh - 150px);overflow:auto}
-  #bmbar{min-height:38px;padding:5px 6px}.wrap{gap:20px}.grid{grid-template-columns:1fr 1fr}.dials{grid-template-columns:repeat(2,minmax(0,1fr))}
-}
+   #bmbar{min-height:38px;padding:5px 6px}.wrap{gap:20px}.grid{grid-template-columns:1fr 1fr}.dials{grid-template-columns:repeat(2,minmax(0,1fr))}
+   input[type=text],input[type=search],select{font-size:16px;min-height:44px}
+   .btn,.dial,.item .main,.sw{min-height:44px}
+   #install{flex-wrap:wrap;gap:8px;padding:12px}#install p{flex-basis:100%}
+ }
 @media (max-width:430px){.grid{grid-template-columns:1fr}.stat b{font-size:24px}.tab .fav{display:none}.tab .t{font-size:13px}.toolbar .ib[title="Back (Alt+Left)"],.toolbar .ib[title="Forward (Alt+Right)"]{width:34px}.btn{min-height:42px}.bigsearch .btn{width:100%}}
-@media (max-width:360px){.toolbar .ib[title="Back (Alt+Left)"],.toolbar .ib[title="Forward (Alt+Right)"]{display:none}.toolbar{gap:1px}.ib{width:38px}}
+ @media (max-width:360px){.toolbar .ib[title="Back (Alt+Left)"],.toolbar .ib[title="Forward (Alt+Right)"]{display:none}.toolbar{gap:1px}.ib{width:38px}.tab{width:calc(50vw - 8px)}.tab .t{font-size:12px}#bmbar button{max-width:140px}}
+ @media (orientation:landscape) and (max-height:500px){
+   .chrome{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+   .tabbar{padding-top:2px}.toolbar{padding-top:2px;padding-bottom:2px}.ib{height:34px}
+   #omniwrap{height:36px}#omnibox{height:34px}#bmbar{min-height:30px;padding-top:2px;padding-bottom:2px}
+ }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -432,7 +442,7 @@ VIEWS.start=function(){
   var h=new Date().getHours(),g=h<5?'Still up':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
   var dials=BM.slice(0,12).map(function(b){return '<button class="dial" data-go="'+esc(b.url)+'"><span class="ico">'+esc((b.title||'?').charAt(0).toUpperCase())+'</span><b>'+esc(b.title)+'</b></button>'}).join('');
    return '<div class="wrap"><div><div class="mono muted" id="clock"></div><h1 style="margin-top:6px">'+g+(P.name?', '+esc(P.name):'')+'.</h1>'+
-     '<p class="muted" style="margin-top:6px">'+(IS_DESKTOP?'Real Chromium browsing is active. Pages open directly inside MAT tabs.':'Everything opens right here. Searching with '+esc(ENGINES[P.engine][0])+'. Ads and trackers are filtered before a page reaches you.')+'</p></div>'+
+     '<p class="muted" style="margin-top:6px">'+(IS_DESKTOP?'Real Chromium browsing is active. Pages open directly inside MAT tabs.':'Online MAT mode is active. Searching with '+esc(ENGINES[P.engine][0])+'. Pages are fetched and cleaned through the privacy proxy.')+'</p></div>'+ 
     '<form class="bigsearch" data-form="startsearch"><input type="search" id="startq" aria-label="Search" placeholder="Search the web or enter an address" autofocus><button class="btn primary" type="submit">Go</button></form>'+
     '<section><h2>Speed dial</h2><div class="dials" style="margin-top:12px">'+(dials||'<p class="muted">Bookmark a page and it shows up here.</p>')+'</div></section>'+
     '<section><h2>Shield, this session</h2><div class="grid" style="margin-top:12px">'+stat(stats.blocked,'ad and tracker requests blocked')+stat(stats.stripped,'tracking tags removed')+stat(stats.upgraded,'pages upgraded to HTTPS')+'</div></section></div>';

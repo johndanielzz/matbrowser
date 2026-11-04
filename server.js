@@ -547,8 +547,8 @@ async function handleMain(req, res) {
       return send(res, 200, type, fs.readFileSync(file));
     }
   }
-  if (q.pathname === '/api/config') return send(res, 200, 'application/json', JSON.stringify({ contentOrigin: CONTENT_ORIGIN, contentPort: process.env.VERCEL ? 0 : CPORT, settings: sess.s }));
-  if (q.pathname === '/api/health') return send(res, 200, 'application/json', JSON.stringify({ ok: true, runtime: process.env.VERCEL ? 'vercel' : 'node', node: process.versions.node, parties: parties.size }));
+  if (q.pathname === '/api/config') return send(res, 200, 'application/json', JSON.stringify({ contentOrigin: CONTENT_ORIGIN, contentPort: process.env.VERCEL ? 0 : CPORT, runtime: process.env.VERCEL ? 'vercel-proxy' : 'node-proxy', nativeBrowser: false, settings: sess.s }));
+  if (q.pathname === '/api/health') return send(res, 200, 'application/json', JSON.stringify({ ok: true, runtime: process.env.VERCEL ? 'vercel-proxy' : 'node-proxy', nativeBrowser: false, node: process.versions.node, parties: parties.size }));
   if (q.pathname === '/api/party/create' && (req.method === 'POST' || req.method === 'GET')) {
     try {
       const id = crypto.randomBytes(12).toString('hex'); parties.set(id, { state: null, touched: Date.now() });

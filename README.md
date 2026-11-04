@@ -42,7 +42,7 @@ other website. Use `npm run desktop` for the real browsing runtime.
 The proxy keeps session state in memory. A single local process is the recommended deployment for persistent site
 cookies; serverless deployments may lose sessions when functions scale down or restart.
 
-After a Vercel redeploy, check `/api/health`. It should return JSON with `ok: true`. If Vercel shows a function
+After a Vercel redeploy, check `/api/health`. It should return JSON with `ok: true` and `runtime: "vercel-proxy"`. If Vercel shows a function
 invocation error, open the deployment's **Functions → Logs** and use the first stack-trace line; a generic 500 screen
 does not contain the root cause.
 
@@ -54,6 +54,8 @@ independently. Use a shared datastore such as Vercel KV or Redis before relying 
 
 ## What it does
 
+- Responsive mobile layout for Android and iPhone: safe-area insets, dynamic viewport sizing, touch-friendly controls,
+  landscape support, and Safari-friendly form sizing.
 - Tabs, private tabs, back and forward per tab, bookmarks bar, history, speed dial, zoom
 - Address bar that searches or opens sites, with suggestions from the web, your bookmarks and your history
 - Search engines: DuckDuckGo, Brave, Mojeek, Bing, Startpage, Wikipedia, Google, Yahoo, Ecosia and Qwant
