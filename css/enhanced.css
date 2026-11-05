@@ -1,0 +1,401 @@
+/* ==========================================================================
+   ENHANCED STYLES — Added animations, testimonials, counters, cookie banner
+   ========================================================================== */
+
+/* --- Scroll reveal utilities --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-transition {
+  transition-duration: 0.7s;
+}
+
+.reveal-fast {
+  transition-duration: 0.4s;
+}
+
+/* --- Back to top button --- */
+/* --- Cookie consent banner --- */
+.cookie-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 16px clamp(18px, 5vw, 72px) 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+}
+
+.cookie-banner.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.cookie-banner__text {
+  flex: 1 1 280px;
+  font-size: 0.94rem;
+  color: var(--muted);
+}
+
+.cookie-banner__text strong {
+  color: var(--text);
+  font-weight: 750;
+}
+
+.cookie-banner__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cookie-banner__actions button {
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 750;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.cookie-banner__actions button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cookie-banner__actions button.btn-accept {
+/* --- Newsletter section --- */
+.newsletter-section {
+  padding: clamp(58px, 8vw, 92px) 0;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(11, 107, 203, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 50%, rgba(19, 115, 51, 0.06) 0%, transparent 50%);
+}
+
+.newsletter-section .section-header {
+  text-align: center;
+}
+
+.newsletter-section .section-header h2 {
+  margin-bottom: 12px;
+}
+
+.newsletter-section .section-header p {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.newsletter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 560px;
+  margin: 26px auto 0;
+}
+
+.newsletter-form .field {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.newsletter-form .field input {
+  padding: 13px 16px;
+  min-height: 48px;
+  font-size: 1rem;
+}
+
+.newsletter-form .btn {
+  min-height: 48px;
+  padding: 0 24px;
+  font-size: 1rem;
+}
+
+/* --- Testimonials section --- */
+.testimonials-section {
+  padding: clamp(58px, 8vw, 92px) 0;
+}
+
+.testimonials-section .section-header {
+  text-align: center;
+}
+
+.testimonials-section .section-header h2 {
+  margin-bottom: 12px;
+}
+
+.testimonials-section .section-header p {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.testimonial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.testimonial-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 26px;
+  position: relative;
+}
+
+.testimonial-card::before {
+  content: "“";
+  position: absolute;
+  top: -10px;
+  left: 20px;
+  font-size: 4rem;
+  font-family: Georgia, serif;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.15;
+}
+
+.testimonial-card p {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--text);
+  margin: 20px 0 16px;
+}
+
+.testimonial-card .testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.testimonial-card .testimonial-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.testimonial-card .testimonial-name {
+/* --- Mobile menu --- */
+@media (max-width: 900px) {
+  .public-nav__actions .mobile-menu {
+    display: flex;
+  }
+
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar::backdrop {
+    background: rgba(10, 10, 10, 0.35);
+    backdrop-filter: blur(4px);
+  }
+
+  .hamburger-button {
+    display: flex;
+  }
+
+  .hero__grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .hero__grid > * {
+    max-width: 100%;
+  }
+
+  .preview-body {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-rail {
+    display: none;
+  }
+
+  .feature-grid,
+  .metrics-grid,
+  .pricing-grid,
+  .report-grid,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .niche-pack-grid,
+  .asset-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tycoon-thread {
+    padding: 12px;
+  }
+
+  .tycoon-msg .tycoon-col {
+    max-width: 100%;
+  }
+}
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.testimonial-card .testimonial-role {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* --- Typing effect styles (for JS) --- */
+.typed-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: var(--accent);
+  animation: blink 0.9s step-end infinite;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* --- Nationality hero badge (premium upgrade) --- */
+.nationality-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(19, 115, 51, 0.08);
+  color: var(--accent-2);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(19, 115, 51, 0.2);
+  margin-bottom: 14px;
+}
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.cookie-banner__actions button.btn-accept:hover {
+  background: #0959a0;
+}
+
+.cookie-banner__close {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.cookie-banner__close:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+@media (max-width: 600px) {
+  .cookie-banner {
+    padding: 14px 16px 16px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cookie-banner__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+.back-to-top {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(16px);
+  transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease,
+              background 0.2s ease;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(10, 10, 10, 0.12);
+}
+
+.back-to-top:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-4px);
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.back-to-top:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
